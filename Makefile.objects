@@ -1,0 +1,10 @@
+phpgo.lo: /root/michael/phpgo/phpgo.cc
+	$(LIBTOOL) --mode=compile $(CXX)  -I. -I/root/michael/phpgo $(COMMON_FLAGS) $(CXXFLAGS_CLEAN) $(EXTRA_CXXFLAGS)  -c /root/michael/phpgo/phpgo.cc -o phpgo.lo 
+go.lo: /root/michael/phpgo/go.cc
+	$(LIBTOOL) --mode=compile $(CXX)  -I. -I/root/michael/phpgo $(COMMON_FLAGS) $(CXXFLAGS_CLEAN) $(EXTRA_CXXFLAGS)  -c /root/michael/phpgo/go.cc -o go.lo 
+$(phplibdir)/phpgo.la: ./phpgo.la
+	$(LIBTOOL) --mode=install cp ./phpgo.la $(phplibdir)
+
+./phpgo.la: $(shared_objects_phpgo) $(PHPGO_SHARED_DEPENDENCIES)
+	$(LIBTOOL) --mode=link $(CC) $(COMMON_FLAGS) $(CFLAGS_CLEAN) $(EXTRA_CFLAGS) $(LDFLAGS) -o $@ -export-dynamic -avoid-version -prefer-pic -module -rpath $(phplibdir) $(EXTRA_LDFLAGS) $(shared_objects_phpgo) $(PHPGO_SHARED_LIBADD)
+
