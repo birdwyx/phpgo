@@ -16,8 +16,14 @@ using namespace co;
 
 extern zend_class_entry* ce_go_chan_ptr;
 
+#ifdef ZTS
+	#define TSRMLS_FIELD TSRMLS_D
+#else
+	#define TSRMLS_FIELD
+#endif
+
 #define __PHPGO_CONTEXT_FIELDS__ 	                    \
-	TSRMLS_D;                                           \
+	TSRMLS_FIELD;                                       \
 	struct _zend_execute_data* EG_current_execute_data; \
 	zend_vm_stack 			   EG_argument_stack;       \
 	zend_class_entry*		   EG_scope;                \
@@ -82,14 +88,15 @@ public:
 		
 		PhpgoSchedulerContext* sched_ctx    =  &scheduler_ctx;
 		
+	#ifdef ZTS
 		if( UNEXPECTED(!sched_ctx->TSRMLS_C) ){
 			//this is the first time task run, 
 			//fetch and store the thread specific tsrm_ls to local context
 			TSRMLS_FETCH();  
 			TSRMLS_SET_CTX(sched_ctx->TSRMLS_C);
 		}
-		
 		TSRMLS_FETCH_FROM_CTX(sched_ctx->TSRMLS_C);
+	#endif
 		
 		// save the scheduler EGs first
 		sched_ctx->EG_current_execute_data  =  EG(current_execute_data    );
@@ -132,8 +139,11 @@ public:
 		//printf("---------->onSwapOut(%ld)<-----------\n", task_id);
 
 		PhpgoSchedulerContext* sched_ctx    =  &scheduler_ctx;
+		
+	#ifdef ZTS
 		//assert(sched_ctx->TSRMLS_C);
 		TSRMLS_FETCH_FROM_CTX(sched_ctx->TSRMLS_C);
+	#endif
 		
 		PhpgoContext* ctx = (PhpgoContext*)TaskLocalStorage::GetSpecific(phpgo_context_key);
 		
