@@ -17,6 +17,7 @@ using namespace co;
 extern zend_class_entry* ce_go_chan_ptr;
 
 #define __PHPGO_CONTEXT_FIELDS__ 	                    \
+	TSRMLS_D;                                           \
 	struct _zend_execute_data* EG_current_execute_data; \
 	zend_vm_stack 			   EG_argument_stack;       \
 	zend_class_entry*		   EG_scope;                \
@@ -81,6 +82,15 @@ public:
 		
 		PhpgoSchedulerContext* sched_ctx    =  &scheduler_ctx;
 		
+		if( UNEXPECTED(!sched_ctx->TSRMLS_C) ){
+			//this is the first time task run, 
+			//fetch and store the thread specific tsrm_ls to local context
+			TSRMLS_FETCH();  
+			TSRMLS_SET_CTX(sched_ctx->TSRMLS_C);
+		}
+		
+		TSRMLS_FETCH_FROM_CTX(sched_ctx->TSRMLS_C);
+		
 		// save the scheduler EGs first
 		sched_ctx->EG_current_execute_data  =  EG(current_execute_data    );
 		sched_ctx->EG_argument_stack        =  EG(argument_stack          );
@@ -120,6 +130,10 @@ public:
 	 */
 	virtual void onSwapOut(uint64_t task_id) noexcept {
 		//printf("---------->onSwapOut(%ld)<-----------\n", task_id);
+
+		PhpgoSchedulerContext* sched_ctx    =  &scheduler_ctx;
+		//assert(sched_ctx->TSRMLS_C);
+		TSRMLS_FETCH_FROM_CTX(sched_ctx->TSRMLS_C);
 		
 		PhpgoContext* ctx = (PhpgoContext*)TaskLocalStorage::GetSpecific(phpgo_context_key);
 		
@@ -136,8 +150,6 @@ public:
 		ctx->EG_error_zval            =  EG(error_zval              );
 		ctx->EG_error_zval_ptr        =  EG(error_zval_ptr          );
 		ctx->EG_user_error_handler    =  EG(user_error_handler      );
-		
-		PhpgoSchedulerContext* sched_ctx    =  &scheduler_ctx;
 		
 		// restore EG to the scheduler EGs
 		EG(current_execute_data )     =  sched_ctx->EG_current_execute_data;
@@ -156,36 +168,6 @@ public:
 };
 
 thread_local PhpgoSchedulerContext   PhpgoTaskListener::scheduler_ctx;
-
-typedef struct {
-	struct _zend_execute_data* EG_current_execute_data;
-	zend_bool 				   EG_active;
-	zval*					   EG_exception;
-	zend_objects_store		   EG_objects_store;
-	zend_vm_stack 			   EG_argument_stack;
-	zend_class_entry*		   EG_scope;
-	zval*					   EG_This;
-	zend_class_entry*		   EG_called_scope;
-	HashTable*				   EG_active_symbol_table;
-	zval**					   EG_return_value_ptr_ptr;
-	zend_op_array*			   EG_active_op_array;
-	zend_op**				   EG_opline_ptr;
-	zval                       EG_error_zval;
-	zval*                      EG_error_zval_ptr;
-	
-	zval*                      EG_user_error_handler;
-	
-	zend_executor_globals      executor_globals;
-	zend_compiler_globals      compiler_globals;
-}cls_struct;
-
-static std::map<uint64_t, cls_struct> cls00;
-static char buf[1024];
-//static cls_struct cls[2000];
-std::map<uint64_t, cls_struct> cls;
-static char buf1[1024];
-static std::map<uint64_t, cls_struct> cls011;
-
 
 bool phpgo_initialize(){
 	PhpgoTaskListener* listener = new PhpgoTaskListener();
@@ -242,12 +224,7 @@ void dump_zval(zval* zv){
 	//zv->refcount__gc = 3;
 }
 
-void swap_in_hook(uint64_t task_id);
-void swap_out_hook(uint64_t task_id);
-void swap_in_error_hook(uint64_t task_id);
-void swap_out_error_hook(uint64_t task_id);
-
-void* php_api_go(zend_uint argc, zval ***args TSRMLS_CC){
+void* php_api_go(zend_uint argc, zval ***args TSRMLS_DC){
 	
 	#define GR_VM_STACK_PAGE_SIZE (256)   // 256 zval* = 2048 byte
 	#define VM_STACK_PUSH(stack, v)  do { *((stack)->top++) = (void*)(v); } while(0)
@@ -348,28 +325,6 @@ void* php_api_go(zend_uint argc, zval ***args TSRMLS_CC){
 	return tk;
 }
 
-int php_api_go_await(zval* callback, zval* ptr_return_value){
-	if (co_sched.IsCoroutine()) {
-		php_printf("phpgo: error: go_await must be called outside a go routine\n");
-		return 0;
-	}
-
-	// run the routine in local thread for a sync result
-	int completed = 0;
-	go_dispatch(egod_local_thread) [=,&completed]{
-		if (call_user_function(EG(function_table), NULL, callback, ptr_return_value, 0, NULL) != SUCCESS){
-			php_printf("go_await: execution of go routine faild\n");
-		}
-		completed = 1;
-	};
-	
-	//block current thread until the go routine returns;
-	while(!completed)
-		co_sched.Run();
-	
-	return 1;
-}
-
 void dump_eg(uint64_t task_id){
 	#if 0
 	printf( "\n");
@@ -400,153 +355,6 @@ void dump_eg(uint64_t task_id){
 		);
 	}
 	#endif
-}
-
-void swap_in_hook(uint64_t task_id){
-	
-	
-	printf("--------------swap_in_hook(%ld)--------------\n", task_id);
-	#if 0
-	printf( "EG(exception): %p\n", EG(exception));
-	
-	// swap in: swap from the scheduler context to a task context
-	
-	printf("before:\n");
-	dump_eg(task_id);
-	#endif
-	
-	// store the secheduler's EG
-	cls[1000].EG_current_execute_data   = EG(current_execute_data);
-	//cls[1000].EG_active                 = EG(active)              ;
-	//cls[1000].EG_exception              = EG(exception)           ;
-	//cls[1000].EG_objects_store          = EG(objects_store)       ;
-	cls[1000].EG_argument_stack         = EG(argument_stack)      ;
-	cls[1000].EG_scope                  = EG(scope)               ;
-	cls[1000].EG_This                   = EG(This)                ;
-	cls[1000].EG_called_scope           = EG(called_scope)        ;
-	cls[1000].EG_active_symbol_table    = EG(active_symbol_table) ;
-	cls[1000].EG_return_value_ptr_ptr   = EG(return_value_ptr_ptr);
-	cls[1000].EG_active_op_array        = EG(active_op_array)     ;
-	cls[1000].EG_opline_ptr             = EG(opline_ptr)          ;
-	cls[1000].EG_error_zval             = EG(error_zval)          ;
-	cls[1000].EG_error_zval_ptr         = EG(error_zval_ptr)      ;
-	cls[1000].EG_user_error_handler     = EG(user_error_handler)  ;
-	
-	//cls[1000].executor_globals          = executor_globals;
-	//cls[1000].compiler_globals          = compiler_globals;
-	
-	// set the EG to the task's EG, if present (there won't be one for the first time
-	// the task get swapped in - under that situation, the secheduer's EG, i.e., the
-	// current EG, shall be used)
-	if(!cls[task_id].EG_current_execute_data) goto exit;
-	
-	EG(current_execute_data) =	cls[task_id].EG_current_execute_data;
-	//EG(active)               =	cls[task_id].EG_active              ; 
-	//EG(exception)            =	cls[task_id].EG_exception           ;
-	//EG(objects_store)        =	cls[task_id].EG_objects_store       ;
-	EG(argument_stack)       =	cls[task_id].EG_argument_stack      ;
-	EG(scope)                =	cls[task_id].EG_scope               ;  //EG(current_execute_data)->current_scope; //
-	EG(This)                 =	cls[task_id].EG_This                ;  //EG(current_execute_data)->current_this; //
-	EG(called_scope)         =	cls[task_id].EG_called_scope        ;  //EG(current_execute_data)->current_called_scope; //
-	EG(active_symbol_table)  =	cls[task_id].EG_active_symbol_table ;
-	EG(return_value_ptr_ptr) =	cls[task_id].EG_return_value_ptr_ptr;
-	EG(active_op_array)      =	cls[task_id].EG_active_op_array     ;
-	EG(opline_ptr)           =	cls[task_id].EG_opline_ptr          ;
-	EG(error_zval)           =  cls[task_id].EG_error_zval          ;
-	EG(error_zval_ptr)       =  cls[task_id].EG_error_zval_ptr      ;
-	
-	EG(user_error_handler)   =  cls[task_id].EG_user_error_handler   ;
-
-exit:
-
-	#if 0
-	printf( "after:\n");
-	dump_eg(task_id);
-	#endif
-	;
-	
-	// from swoole
-	//EG(This) = EG(current_execute_data)->current_this;
-    //EG(scope) = EG(current_execute_data)->current_scope;
-    //EG(called_scope) = EG(current_execute_data)->current_called_scope;
-    //EG(argument_stack) = SWCC(current_vm_stack);
-	
-	//executor_globals         =  cls[task_id].executor_globals       ;
-	//compiler_globals         =  cls[task_id].compiler_globals       ;
-	
-}
-void swap_out_hook(uint64_t task_id){
-	
-	
-	printf("--------------swap_out_hook(%ld)--------------\n", task_id);
-	#if 0
-	printf( "EG(exception): %p\n", EG(exception));
-	
-	printf("before:\n");
-	dump_eg(task_id);
-	
-	
-	
-	// swap out: swap from the task context to the scheduler context
-	
-	// store the task's EG
-	printf("EG(current_execute_data): %p\n", EG(current_execute_data));
-	#endif
-	
-	cls[task_id].EG_current_execute_data   = EG(current_execute_data); 
-	//cls[task_id].EG_active                 = EG(active)              ;
-	//cls[task_id].EG_exception              = EG(exception)           ;
-	//cls[task_id].EG_objects_store          = EG(objects_store)       ;
-	cls[task_id].EG_argument_stack         = EG(argument_stack)      ;
-	cls[task_id].EG_scope                  = EG(scope)               ;   //EG(current_execute_data)->current_scope; //
-	cls[task_id].EG_This                   = EG(This)                ;   //EG(current_execute_data)->current_this;// 
-	cls[task_id].EG_called_scope           = EG(called_scope)        ;   //EG(current_execute_data)->current_called_scope; //
-	cls[task_id].EG_active_symbol_table    = EG(active_symbol_table) ; 
-	cls[task_id].EG_return_value_ptr_ptr   = EG(return_value_ptr_ptr); 
-	cls[task_id].EG_active_op_array        = EG(active_op_array)     ; 
-	cls[task_id].EG_opline_ptr             = EG(opline_ptr)          ; 
-	cls[task_id].EG_error_zval             = EG(error_zval)          ; 
-	cls[task_id].EG_error_zval_ptr         = EG(error_zval_ptr)      ; 
-	cls[task_id].EG_user_error_handler     = EG(user_error_handler)  ;
-	
-	//cls[task_id].executor_globals          = executor_globals        ;
-	//cls[task_id].compiler_globals          = compiler_globals        ;
-	
-	// restore the EG to the scheduler's EG:
-	
-	EG(current_execute_data) =	cls[1000].EG_current_execute_data; 
-	//EG(active)               =	cls[1000].EG_active              ;
-	//EG(exception)            =	cls[1000].EG_exception           ;
-	//EG(objects_store)        =	cls[1000].EG_objects_store       ;
-	EG(argument_stack)       =	cls[1000].EG_argument_stack      ;
-	EG(scope)                =	cls[1000].EG_scope               ; 
-	EG(This)                 =	cls[1000].EG_This                ; 
-	EG(called_scope)         =	cls[1000].EG_called_scope        ; 
-	EG(active_symbol_table)  =	cls[1000].EG_active_symbol_table ; 
-	EG(return_value_ptr_ptr) =	cls[1000].EG_return_value_ptr_ptr; 
-	EG(active_op_array)      =	cls[1000].EG_active_op_array     ; 
-	EG(opline_ptr)           =	cls[1000].EG_opline_ptr          ; 
-	EG(error_zval)           =  cls[1000].EG_error_zval          ; 
-	EG(error_zval_ptr)       =  cls[1000].EG_error_zval_ptr      ; 
-	EG(user_error_handler)   =  cls[1000].EG_user_error_handler   ;
-	
-	//executor_globals         =  cls[1000].executor_globals       ;
-	//compiler_globals         =  cls[1000].compiler_globals       ;
-	
-	#if 0
-	printf("after:\n");
-	dump_eg(task_id);
-	#endif
-	
-	
-}
-
-void swap_in_error_hook(uint64_t task_id){
-	printf("swap_in_error_hook(%ld)\n", task_id);
-}
-
-void swap_out_error_hook(uint64_t task_id){
-	printf("swap_out_error_hook(%ld)\n", task_id);
 }
 
 void php_api_go_schedule_once(){
@@ -657,7 +465,7 @@ zval* php_api_go_chan_pop(void* handle){
 }
 
 /*convert chan zval to the channel ptr*/
-Channel<zval*>* _php_api_go_chan_z2p(zval* z_chan){
+Channel<zval*>* _php_api_go_chan_z2p(zval* z_chan TSRMLS_DC){
 	
 	auto z_handler = zend_read_property(ce_go_chan_ptr, z_chan, "handle",   sizeof("handle"), true TSRMLS_CC);
 	if( !z_handler || Z_TYPE_P(z_handler) == IS_NULL ){
@@ -673,7 +481,7 @@ Channel<zval*>* _php_api_go_chan_z2p(zval* z_chan){
 }
 
 /*convert chan zval to the channel CHANNEL_INFO*/
-CHANNEL_INFO* _php_api_go_chan_z2i(zval* z_chan){
+CHANNEL_INFO* _php_api_go_chan_z2i(zval* z_chan TSRMLS_DC){
 	
 	auto z_handler = zend_read_property(ce_go_chan_ptr, z_chan, "handle",   sizeof("handle"), true TSRMLS_CC);
 	if( !z_handler || Z_TYPE_P(z_handler) == IS_NULL ){
@@ -796,11 +604,23 @@ bool  php_api_go_waitgroup_destroy(void* wg){
 	auto wg_obj = (::co::CoWaitGroup*)wg;
 	delete wg_obj;
 }
+
+uint64_t php_api_go_runtime_num_goroutine(){
+	return co_sched.TaskCount();
+}
+
+void php_api_go_runtime_gosched(){
+	if(co_sched.IsCoroutine()){
+		co_sched.CoYield();
+	}else{
+		co_sched.Run();
+	}
+}
 	
 /*
 * select - case
 */
-zval*  php_api_go_select(GO_SELECT_CASE* case_array, long case_count){
+zval*  php_api_go_select(GO_SELECT_CASE* case_array, long case_count TSRMLS_DC){
 	
 	//printf("php_api_go_select\n");
 	
@@ -823,7 +643,7 @@ zval*  php_api_go_select(GO_SELECT_CASE* case_array, long case_count){
 		switch(case_array[i].case_type){
 		case GO_CASE_TYPE_CASE:
 			z_chan = case_array[i].chan;
-			chinfo = _php_api_go_chan_z2i(z_chan);
+			chinfo = _php_api_go_chan_z2i(z_chan TSRMLS_CC);
 			if( !chinfo ){
 				zend_error(E_ERROR, "phpgo: php_api_go_select: null channel");
 				return nullptr;

@@ -29,7 +29,6 @@ extern "C" {
 	bool     phpgo_initialize();
 	void     php_api_go_debug(unsigned long debug_flag);
 	void*    php_api_go(zend_uint argc, zval*** args TSRMLS_DC);
-	int      php_api_go_await(zval* callback, zval* ptr_return_value);
 	
 	void     php_api_go_schedule_once(void);
 	void     php_api_go_schedule_all(void);
@@ -43,7 +42,7 @@ extern "C" {
 	void     php_api_go_chan_close(void* handle);
 	void     php_api_go_chan_destroy(void* handle);
 	         
-	zval*    php_api_go_select(GO_SELECT_CASE* case_array, long case_count);
+	zval*    php_api_go_select(GO_SELECT_CASE* case_array, long case_count TSRMLS_DC);
 	
 	void*    php_api_go_mutex_create(bool signaled);
 	void     php_api_go_mutex_lock(void* mutex);
@@ -61,6 +60,9 @@ extern "C" {
 	
 	void     php_api_go_timer_tick(zval* z_chan, void* h_chan, uint64_t microseconds);
 	void     php_api_go_timer_after(zval* z_chan, void* h_chan, uint64_t microseconds);
+	
+	uint64_t php_api_go_runtime_num_goroutine();
+	void     php_api_go_runtime_gosched();
 }
 
 #endif

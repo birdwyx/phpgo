@@ -48,46 +48,34 @@ PHP_RINIT_FUNCTION(phpgo);
 PHP_RSHUTDOWN_FUNCTION(phpgo);
 PHP_MINFO_FUNCTION(phpgo);
 
-//PHP_FUNCTION(confirm_phpgo_compiled);	/* For testing, remove later. */
 PHP_FUNCTION(go);
-PHP_FUNCTION(go_await);
-PHP_FUNCTION(go_go_debug);
-
-PHP_FUNCTION(go_schedule_once);
-PHP_FUNCTION(go_schedule_all);
-PHP_FUNCTION(go_schedule_forever);
-
-PHP_FUNCTION(go_chan_create);
-PHP_FUNCTION(go_chan_close);
-PHP_FUNCTION(go_chan_push);
-PHP_FUNCTION(go_chan_pop);
+PHP_FUNCTION(go_debug);
 
 PHP_FUNCTION(select);
 PHP_FUNCTION(_case);
 PHP_FUNCTION(_default);
 
-PHP_FUNCTION(go_mutex_create);
-PHP_FUNCTION(go_mutex_destroy);
-PHP_FUNCTION(go_mutex_lock);
-PHP_FUNCTION(go_mutex_unlock);
-PHP_FUNCTION(go_mutex_try_lock);
-PHP_FUNCTION(go_mutex_is_lock);
+PHP_METHOD(Scheduler, RunOnce);
+PHP_METHOD(Scheduler, RunJoinAll);
+PHP_METHOD(Scheduler, RunForever);
 
+PHP_METHOD(Runtime,   NumGoroutine);
+PHP_METHOD(Runtime,   Gosched);
 
-PHP_METHOD(Chan, __construct);
-PHP_METHOD(Chan, Push);
-PHP_METHOD(Chan, Pop);
-PHP_METHOD(Chan, TryPush);
-PHP_METHOD(Chan, TryPop);
-PHP_METHOD(Chan, Close);
-PHP_METHOD(Chan, __destruct);
-
-PHP_METHOD(Mutex, __construct);
-PHP_METHOD(Mutex, Lock);
-PHP_METHOD(Mutex, Unlock);
-PHP_METHOD(Mutex, TryLock);
-PHP_METHOD(Mutex, IsLock);
-PHP_METHOD(Mutex, __destruct);
+PHP_METHOD(Chan,      __construct);
+PHP_METHOD(Chan,      Push);
+PHP_METHOD(Chan,      Pop);
+PHP_METHOD(Chan,      TryPush);
+PHP_METHOD(Chan,      TryPop);
+PHP_METHOD(Chan,      Close);
+PHP_METHOD(Chan,      __destruct);
+                      
+PHP_METHOD(Mutex,     __construct);
+PHP_METHOD(Mutex,     Lock);
+PHP_METHOD(Mutex,     Unlock);
+PHP_METHOD(Mutex,     TryLock);
+PHP_METHOD(Mutex,     IsLock);
+PHP_METHOD(Mutex,     __destruct);
 
 PHP_METHOD(Waitgroup, __construct);
 PHP_METHOD(Waitgroup, Add);
@@ -95,17 +83,13 @@ PHP_METHOD(Waitgroup, Done);
 PHP_METHOD(Waitgroup, Wait);
 PHP_METHOD(Waitgroup, __destruct);
 
-PHP_METHOD(Scheduler, RunOnce);
-PHP_METHOD(Scheduler, RunJoinAll);
-PHP_METHOD(Scheduler, RunForever);
+PHP_METHOD(Selector,  __construct);
+PHP_METHOD(Selector,  Select);
+PHP_METHOD(Selector,  Loop);
+PHP_METHOD(Selector,  __destruct);
 
-PHP_METHOD(Selector, __construct);
-PHP_METHOD(Selector, Select);
-PHP_METHOD(Selector, Loop);
-PHP_METHOD(Selector, __destruct);
-
-PHP_METHOD(Timer, Tick);
-PHP_METHOD(Timer, After);
+PHP_METHOD(Timer,     Tick);
+PHP_METHOD(Timer,     After);
 /* 
   	Declare any global variables you may need between the BEGIN
 	and END macros here:     

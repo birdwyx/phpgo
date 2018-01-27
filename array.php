@@ -5,6 +5,11 @@ use \go\Mutex;
 use \go\Waitgroup;
 use \go\Scheduler;
 use \go\Timer;
+use \go\Runtime;
+
+echo "num g: ". runtime::NumGoroutine() . PHP_EOL;
+
+Runtime::Gosched();
 
 $time = Timer::After(1000*1000);
 
@@ -172,6 +177,10 @@ go( function() use($ch, $v){
 		})
 	);
 	
+	Runtime::Gosched();
+	
+	echo "num g: ". runtime::NumGoroutine() . PHP_EOL;
+	
 	var_dump($sel);
 	
 	$l = $sel->Loop($done);
@@ -200,6 +209,8 @@ go( function() use($ch, $v){
 			//$done->Close();
 		}
 		
+		Runtime::Gosched();
+		
 		if($i++>10) break;
 		usleep(50*1000);
 	}
@@ -208,6 +219,7 @@ go( function() use($ch, $v){
 	
 });
 
+echo "num g: ". Runtime::NumGoroutine() . PHP_EOL;
 /*
 go(function(){
 	$i = 0;
@@ -233,6 +245,6 @@ go(function(){
 
 Scheduler::RunJoinAll();
 //go_schedule_all();
-
+echo "num g: ". Runtime::NumGoroutine() . PHP_EOL;
 
 echo "at the end\n";

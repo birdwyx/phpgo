@@ -1,5 +1,5 @@
 <?php
-
+use \go\Chan;
 //$a = "world";
 
 //sleep(1);
@@ -27,7 +27,7 @@ static const uint64_t dbg_signal            = 0x1 << 15;
 static const uint64_t dbg_sys_max           = dbg_debugger;
 */
 
-go_debug($argv[1]);
+//\go\go_debug($argv[1], 1);
 //go_debug( 0x1 << 11 |  0x1 << 10 | 0x1 << 9 | 0x1 << 2 | 0x1 << 3 );
 
 
@@ -69,8 +69,8 @@ echo "1\n";
 go('f1');
 
 */
-$ch = go_make_chan(1);
-$ch2 = go_make_chan(0);
+$ch = new Chan(1);
+$ch2 = new Chan(0);
 
 //echo "global scope: ch=";
 //var_dump($ch);
@@ -93,7 +93,7 @@ function f1(){
 	
 	$a = "a";
 	
-	go_chan_push($ch, $a ); //array("a"=>"b", "c"=>"d"));
+	$ch->Push($a); //array("a"=>"b", "c"=>"d"));
 	
 	echo "f1-1: ch=";
 	
@@ -134,7 +134,7 @@ function f3(){
 	echo "f3: ch=";
 	var_dump($ch);
 	
-	$v = go_chan_pop($ch);
+	$v = $ch->Pop();
 	
 	var_dump($v);
 	
@@ -169,14 +169,14 @@ function redis(){
 	echo $redis->get("foo");
 	
 	global $ch;
-	go_chan_push($ch, $redis->get("foo"));
+	$ch->Push($redis->get("foo"));
 }
 
 
 function ch2(){
 	global $ch2;
 	echo "anno func\n";
-	go_chan_push($ch2, "push from anno func");
+	$ch2->Push("push from anno func");
 };
 	
 function root(){
@@ -187,19 +187,19 @@ function root(){
 	
 	go('ch2');
 	global $ch2;
-	$res = go_chan_pop($ch2);
+	$res = $ch2->Pop();
 	var_dump($res);
 	
 	go('f1');
 	go('f2');
 	go('f3');
 	
-	$ch2 = go_make_chan(1);
+	$ch2 = new Chan(1);
 	go(function() use($ch2){
 		echo "anno func\n";
-		go_chan_push($ch2, "push from anno func");
+		$ch2->Push("push from anno func");
 	});
-	$res = go_chan_pop($ch2);
+	$res = $ch2->Pop();
 	var_dump($res);
 	
 	//$v = go_chan_pop($ch);
@@ -233,12 +233,12 @@ function root(){
 $f1 = 100;
 
 function root1(){
-	$ch2 = go_make_chan(1);
+	$ch2 = new Chan(1);
 	go(function() use($ch2){
 		echo "anno func\n";
-		go_chan_push($ch2, "push from anno func");
+		$ch2->Push("push from anno func");
 	});
-	$res = go_chan_pop($ch2);
+	$res = $ch2->Pop();
 	var_dump($res);
 	
 	go('f1');
@@ -246,14 +246,11 @@ function root1(){
 	global $ch;
 	$co = go('redis');
 	
-	
-
-	
 	go('f2');
 	go('f3');
 
 
-	$v = go_chan_pop($ch);
+	$v = $ch->Pop();
 	echo "receive from ch:". var_export($v,true) .PHP_EOL;
 
 }
@@ -382,7 +379,9 @@ $c = new C();
 echo "go C::printc\n";
 go( array($c, "printc") );
 
-go_schedule_all();
+
+
+\go\Scheduler::RunJoinAll();
 
 
 
