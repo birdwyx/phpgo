@@ -58,6 +58,9 @@ PHP_FUNCTION(_default);
 PHP_METHOD(Scheduler, RunOnce);
 PHP_METHOD(Scheduler, RunJoinAll);
 PHP_METHOD(Scheduler, RunForever);
+#ifdef ZTS
+PHP_METHOD(Scheduler, RunForeverMultiThreaded);
+#endif
 
 PHP_METHOD(Runtime,   NumGoroutine);
 PHP_METHOD(Runtime,   Gosched);
@@ -77,11 +80,11 @@ PHP_METHOD(Mutex,     TryLock);
 PHP_METHOD(Mutex,     IsLock);
 PHP_METHOD(Mutex,     __destruct);
 
-PHP_METHOD(Waitgroup, __construct);
-PHP_METHOD(Waitgroup, Add);
-PHP_METHOD(Waitgroup, Done);
-PHP_METHOD(Waitgroup, Wait);
-PHP_METHOD(Waitgroup, __destruct);
+PHP_METHOD(WaitGroup, __construct);
+PHP_METHOD(WaitGroup, Add);
+PHP_METHOD(WaitGroup, Done);
+PHP_METHOD(WaitGroup, Wait);
+PHP_METHOD(WaitGroup, __destruct);
 
 PHP_METHOD(Selector,  __construct);
 PHP_METHOD(Selector,  Select);

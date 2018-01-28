@@ -74,7 +74,7 @@ static bool phpgo_initialized = false;
 
 zend_class_entry  ce_go_chan,      *ce_go_chan_ptr;
 zend_class_entry  ce_go_mutex,     *ce_go_mutex_ptr;
-zend_class_entry  ce_go_waitgroup, *ce_go_waitgroup_ptr;
+zend_class_entry  ce_go_wait_group,*ce_go_wait_group_ptr;
 zend_class_entry  ce_go_scheduler, *ce_go_scheduler_ptr;
 zend_class_entry  ce_go_selector,  *ce_go_selector_ptr;
 zend_class_entry  ce_go_timer,     *ce_go_timer_ptr;
@@ -105,7 +105,7 @@ ZEND_BEGIN_ARG_INFO_EX(arginfo_go_chan_push, 0, 0, 1)
 	ZEND_ARG_INFO(0, value)
 ZEND_END_ARG_INFO()
 
-ZEND_BEGIN_ARG_INFO_EX(arginfo_go_waitgroup_add, 0, 0, 1)
+ZEND_BEGIN_ARG_INFO_EX(arginfo_go_wait_group_add, 0, 0, 1)
 	ZEND_ARG_INFO(0, delta)
 ZEND_END_ARG_INFO()
 
@@ -150,12 +150,12 @@ const zend_function_entry go_mutex_methods[] = {
 	PHP_FE_END	/* Must be the last line */
 };
 
-const zend_function_entry go_waitgroup_methods[] = {
-	PHP_ME(Waitgroup,      __construct,  NULL,                      ZEND_ACC_PUBLIC|ZEND_ACC_CTOR  )
-	PHP_ME(Waitgroup,      Add,          arginfo_go_waitgroup_add,  ZEND_ACC_PUBLIC                )
-	PHP_ME(Waitgroup,      Done,         NULL,                      ZEND_ACC_PUBLIC                )
-	PHP_ME(Waitgroup,      Wait,         NULL,                      ZEND_ACC_PUBLIC                )
-	PHP_ME(Waitgroup,      __destruct,   NULL,                      ZEND_ACC_PUBLIC|ZEND_ACC_DTOR  )
+const zend_function_entry go_wait_group_methods[] = {
+	PHP_ME(WaitGroup,      __construct,  NULL,                      ZEND_ACC_PUBLIC|ZEND_ACC_CTOR  )
+	PHP_ME(WaitGroup,      Add,          arginfo_go_wait_group_add, ZEND_ACC_PUBLIC                )
+	PHP_ME(WaitGroup,      Done,         NULL,                      ZEND_ACC_PUBLIC                )
+	PHP_ME(WaitGroup,      Wait,         NULL,                      ZEND_ACC_PUBLIC                )
+	PHP_ME(WaitGroup,      __destruct,   NULL,                      ZEND_ACC_PUBLIC|ZEND_ACC_DTOR  )
 	PHP_FE_END	/* Must be the last line */
 };
 
@@ -163,6 +163,9 @@ const zend_function_entry go_scheduler_methods[] = {
 	PHP_ME(Scheduler,      RunOnce,      NULL,                      ZEND_ACC_PUBLIC|ZEND_ACC_STATIC)
 	PHP_ME(Scheduler,      RunJoinAll,   NULL,                      ZEND_ACC_PUBLIC|ZEND_ACC_STATIC)
 	PHP_ME(Scheduler,      RunForever,   NULL,                      ZEND_ACC_PUBLIC|ZEND_ACC_STATIC)
+#ifdef ZTS
+	PHP_ME(Scheduler,      RunForeverMultiThreaded,   NULL,         ZEND_ACC_PUBLIC|ZEND_ACC_STATIC)
+#endif
 	PHP_FE_END	/* Must be the last line */
 };
 
@@ -242,7 +245,7 @@ PHP_MINIT_FUNCTION(phpgo)
 	
 	INIT_NS_CLASS_ENTRY(ce_go_chan,      PHPGO_NS, "Chan",      go_chan_methods);  // 类名为 go\Chan
 	INIT_NS_CLASS_ENTRY(ce_go_mutex,     PHPGO_NS, "Mutex",     go_mutex_methods); 
-	INIT_NS_CLASS_ENTRY(ce_go_waitgroup, PHPGO_NS, "Waitgroup", go_waitgroup_methods); 
+	INIT_NS_CLASS_ENTRY(ce_go_wait_group,PHPGO_NS, "WaitGroup", go_wait_group_methods); 
 	INIT_NS_CLASS_ENTRY(ce_go_scheduler, PHPGO_NS, "Scheduler", go_scheduler_methods); 
 	INIT_NS_CLASS_ENTRY(ce_go_selector,  PHPGO_NS, "Selector",  go_selector_methods); 
 	INIT_NS_CLASS_ENTRY(ce_go_timer,     PHPGO_NS, "Timer",     go_timer_methods); 
@@ -250,7 +253,7 @@ PHP_MINIT_FUNCTION(phpgo)
 	
 	ce_go_chan_ptr      = zend_register_internal_class(&ce_go_chan TSRMLS_CC);
 	ce_go_mutex_ptr     = zend_register_internal_class(&ce_go_mutex TSRMLS_CC);
-	ce_go_waitgroup_ptr = zend_register_internal_class(&ce_go_waitgroup TSRMLS_CC);
+	ce_go_wait_group_ptr= zend_register_internal_class(&ce_go_wait_group TSRMLS_CC);
 	ce_go_scheduler_ptr = zend_register_internal_class(&ce_go_scheduler TSRMLS_CC);
 	ce_go_selector_ptr  = zend_register_internal_class(&ce_go_selector TSRMLS_CC);
 	ce_go_timer_ptr     = zend_register_internal_class(&ce_go_timer TSRMLS_CC);
@@ -335,10 +338,10 @@ PHP_MINFO_FUNCTION(phpgo)
 	long capacity = 0;
 	if (zend_parse_parameters(ZEND_NUM_ARGS() TSRMLS_CC, "l", &capacity) == FAILURE) {
 		zend_error(E_ERROR, "phpgo: Chan::__construct: getting parameter failure");
-		return;
+		RETURN_NULL();
 	}
 
-	void* chan = php_api_go_chan_create(capacity);
+	void* chan = phpgo_go_chan_create(capacity);
 	
 	return_value = getThis();
 	zend_update_property_long(ce_go_chan_ptr, return_value, "handle",   sizeof("handle"),   (long)chan TSRMLS_CC);
@@ -369,7 +372,7 @@ PHP_MINFO_FUNCTION(phpgo)
 		RETURN_FALSE;
 	
 	auto lchan = Z_LVAL_P(chan);
-	void* ch = php_api_go_chan_push( (void*)lchan, z );
+	void* ch = phpgo_go_chan_push( (void*)lchan, z );
 	
 	//printf("chan::push %p\n", ch);
 	
@@ -400,7 +403,7 @@ PHP_MINFO_FUNCTION(phpgo)
 		RETURN_FALSE;
 	
 	auto lchan = Z_LVAL_P(chan);
-	auto ok = php_api_go_chan_try_push( (void*)lchan, z );
+	auto ok = phpgo_go_chan_try_push( (void*)lchan, z );
 	
 	RETURN_BOOL(ok);
 	
@@ -422,7 +425,7 @@ PHP_MINFO_FUNCTION(phpgo)
 		RETURN_FALSE;
 	
 	auto lchan = Z_LVAL_P(chan);	
-	zval* z = php_api_go_chan_pop( (void*)lchan );
+	zval* z = phpgo_go_chan_pop( (void*)lchan );
 	
 	if(!z)
 		RETURN_NULL();
@@ -445,9 +448,9 @@ PHP_MINFO_FUNCTION(phpgo)
 		RETURN_FALSE;
 	
 	auto lchan = Z_LVAL_P(chan);	
-	zval* z = php_api_go_chan_try_pop( (void*)lchan );
+	zval* z = phpgo_go_chan_try_pop( (void*)lchan );
 	
-	// php_api_go_chan_try_pop will
+	// phpgo_go_chan_try_pop will
 	// return nullptr if not ready
 	// return ZVAL_NULL if closed
 	// otherwise return data read
@@ -475,7 +478,7 @@ PHP_MINFO_FUNCTION(phpgo)
 		RETURN_FALSE;
 	
 	auto lchan = Z_LVAL_P(chan);	
-	php_api_go_chan_close( (void*)lchan );
+	phpgo_go_chan_close( (void*)lchan );
 	
  }
  /* }}} */
@@ -496,7 +499,7 @@ PHP_MINFO_FUNCTION(phpgo)
 	
 	auto lchan = Z_LVAL_P(chan);
 	if(lchan){
-		php_api_go_chan_destroy((void*)lchan);
+		phpgo_go_chan_destroy((void*)lchan);
 	}
  }
  /* }}} */
@@ -545,7 +548,7 @@ PHP_MINFO_FUNCTION(phpgo)
 		return;
 	}
 	
-	php_api_go_select(selector->case_array, selector->case_count TSRMLS_CC);
+	phpgo_select(selector->case_array, selector->case_count TSRMLS_CC);
  }
  /* }}} */
  
@@ -585,14 +588,14 @@ PHP_MINFO_FUNCTION(phpgo)
 		RETURN_FALSE;
 	}
 	
-	// php_api_go_chan_try_pop will
+	// phpgo_go_chan_try_pop will
 	// return nullptr if not ready
 	// return ZVAL_NULL if closed
 	// otherwise return data read
 	
 	zval* z = nullptr;
-	while( !( z = php_api_go_chan_try_pop( (void*)lchan ) ) ){
-		php_api_go_select(selector->case_array, selector->case_count TSRMLS_CC);
+	while( !( z = phpgo_go_chan_try_pop( (void*)lchan ) ) ){
+		phpgo_select(selector->case_array, selector->case_count TSRMLS_CC);
 	}
 	
 	zval_add_ref(&z);
@@ -679,7 +682,7 @@ PHP_FUNCTION(go)
     }
     efree(func_name);
 	
-	void* co = php_api_go( argc, args TSRMLS_CC);
+	void* co = phpgo_go( argc, args TSRMLS_CC);
 	
 	efree(args);
 	RETURN_LONG( (long)co );
@@ -823,7 +826,7 @@ PHP_FUNCTION( go_debug )
 	
 	php_printf("\n");
 	
-	//php_api_go_debug(debug_flag);
+	//phpgo_go_debug(debug_flag);
 }
 /* }}} */
 
@@ -1082,7 +1085,7 @@ PHP_FUNCTION(select)
 	}
 	
 	if( exec )
-		php_api_go_select(case_array, case_count TSRMLS_CC);
+		phpgo_select(case_array, case_count TSRMLS_CC);
 	
 	selector = (GO_SELECTOR*)safe_emalloc(1, sizeof(GO_SELECTOR), 0);
 	selector->case_count = case_count;
@@ -1131,7 +1134,7 @@ PHP_METHOD(Mutex,__construct){
 		}
 	}
 	
-	void* mutex = php_api_go_mutex_create(signaled);
+	void* mutex = phpgo_go_mutex_create(signaled);
 	return_value = getThis();
 	zend_update_property_long(ce_go_mutex_ptr, return_value, "handle",   sizeof("handle"),   (long)mutex TSRMLS_CC);	
  }
@@ -1157,7 +1160,7 @@ PHP_METHOD(Mutex,__construct){
 		RETURN_FALSE;
 	
 	auto lmutex = Z_LVAL_P(mutex);
-	php_api_go_mutex_lock((void*)lmutex);
+	phpgo_go_mutex_lock((void*)lmutex);
 	
 	RETURN_TRUE;
  }
@@ -1180,7 +1183,7 @@ PHP_METHOD(Mutex,__construct){
 		RETURN_FALSE;
 	
 	auto lmutex = Z_LVAL_P(mutex);
-	php_api_go_mutex_unlock((void*)lmutex);
+	phpgo_go_mutex_unlock((void*)lmutex);
 	
 	RETURN_TRUE;
  }
@@ -1202,7 +1205,7 @@ PHP_METHOD(Mutex,__construct){
 	auto lmutex = Z_LVAL_P(mutex);
 	
 	//printf("Mutex::TryLock %p\n", lmutex);
-	RETURN_BOOL( php_api_go_mutex_try_lock((void*)lmutex) );
+	RETURN_BOOL( phpgo_go_mutex_try_lock((void*)lmutex) );
  }
  /* }}} */
  
@@ -1223,7 +1226,7 @@ PHP_METHOD(Mutex,__construct){
 		RETURN_FALSE;
 	
 	auto lmutex = Z_LVAL_P(mutex);
-	RETURN_BOOL( php_api_go_mutex_is_lock((void*)lmutex) );
+	RETURN_BOOL( phpgo_go_mutex_is_lock((void*)lmutex) );
  }
  /* }}} */
  
@@ -1242,127 +1245,127 @@ PHP_METHOD(Mutex,__construct){
 		RETURN_FALSE;
 	
 	auto lmutex = Z_LVAL_P(mutex);
-	php_api_go_mutex_destroy( (void*)lmutex );
+	phpgo_go_mutex_destroy( (void*)lmutex );
  }
  /* }}} */
 
 
-  /* {{{ proto Waitgroup::__construct
-  * Create a waitgroup
+  /* {{{ proto WaitGroup::__construct
+  * Create a WaitGroup
   */
-PHP_METHOD(Waitgroup,__construct){
-	//printf("Waitgroup::__construct\n");
-	void* wg = php_api_go_waitgroup_create();
+PHP_METHOD(WaitGroup,__construct){
+	//printf("WaitGroup::__construct\n");
+	void* wg = phpgo_go_wait_group_create();
 	return_value = getThis();
-	zend_update_property_long(ce_go_waitgroup_ptr, return_value, "handle",   sizeof("handle"),   (long)wg TSRMLS_CC);	
+	zend_update_property_long(ce_go_wait_group_ptr, return_value, "handle",   sizeof("handle"),   (long)wg TSRMLS_CC);	
  }
  /* }}} */
  
-  /* {{{ proto Waitgroup::__construct
-  * Create a waitgroup
+  /* {{{ proto WaitGroup::__construct
+  * Create a WaitGroup
   */
- PHP_METHOD(Waitgroup,Add){
- 	//printf("Waitgroup::Add\n");
+ PHP_METHOD(WaitGroup,Add){
+ 	//printf("WaitGroup::Add\n");
 	
 	zval* wg       = NULL;
 	int64_t delta  = 1;
 	
 	if( zend_parse_parameters(ZEND_NUM_ARGS() TSRMLS_CC, "l", (long*)&delta) == FAILURE ){
-        zend_error(E_ERROR, "phpgo: Waitgroup::Add: getting parameter failure");
+        zend_error(E_ERROR, "phpgo: WaitGroup::Add: getting parameter failure");
 		RETURN_FALSE;
     }
 	
 	auto self = getThis();
-	wg = zend_read_property(ce_go_waitgroup_ptr, self, "handle",   sizeof("handle"), true TSRMLS_CC);
+	wg = zend_read_property(ce_go_wait_group_ptr, self, "handle",   sizeof("handle"), true TSRMLS_CC);
 
 	if(!wg)
 		RETURN_FALSE;
 	
-	auto lwg = Z_LVAL_P(wg);
-	int64_t count = php_api_go_waitgroup_add( (void*)lwg, delta );
+	auto l_wg = Z_LVAL_P(wg);
+	int64_t count = phpgo_go_wait_group_add( (void*)l_wg, delta );
 	
 	RETURN_LONG(count);
  }
   /* }}} */
  
-  /* {{{ proto Waitgroup::__construct
-  * Create a waitgroup
+  /* {{{ proto WaitGroup::__construct
+  * Create a WaitGroup
   */
- PHP_METHOD(Waitgroup,Done){
- 	//printf("Waitgroup::Done\n");
+ PHP_METHOD(WaitGroup,Done){
+ 	//printf("WaitGroup::Done\n");
 	
 	zval* wg       = NULL;
 
 	auto self = getThis();
-	wg = zend_read_property(ce_go_waitgroup_ptr, self, "handle",   sizeof("handle"), true TSRMLS_CC);
+	wg = zend_read_property(ce_go_wait_group_ptr, self, "handle",   sizeof("handle"), true TSRMLS_CC);
 
 	if(!wg)
 		RETURN_FALSE;
 	
-	auto lwg = Z_LVAL_P(wg);
-	int64_t count = php_api_go_waitgroup_done( (void*)lwg );
+	auto l_wg = Z_LVAL_P(wg);
+	int64_t count = phpgo_go_wait_group_done( (void*)l_wg );
 	
 	RETURN_LONG(count);
  }
   /* }}} */ 
   
-  /* {{{ proto Waitgroup::__construct
-  * Create a waitgroup
+  /* {{{ proto WaitGroup::__construct
+  * Create a WaitGroup
   */
- PHP_METHOD(Waitgroup,Count){
- 	//printf("Waitgroup::Count\n");
+ PHP_METHOD(WaitGroup,Count){
+ 	//printf("WaitGroup::Count\n");
 	
 	zval* wg       = NULL;
 
 	auto self = getThis();
-	wg = zend_read_property(ce_go_waitgroup_ptr, self, "handle",   sizeof("handle"), true TSRMLS_CC);
+	wg = zend_read_property(ce_go_wait_group_ptr, self, "handle",   sizeof("handle"), true TSRMLS_CC);
 
 	if(!wg)
 		RETURN_FALSE;
 	
-	auto lwg = Z_LVAL_P(wg);
-	int64_t count = php_api_go_waitgroup_count( (void*)lwg );
+	auto l_wg = Z_LVAL_P(wg);
+	int64_t count = phpgo_go_wait_group_count( (void*)l_wg );
 	
 	RETURN_LONG(count);
  }
   /* }}} */ 
   
- /* {{{ proto Waitgroup::__construct
-  * Create a waitgroup
+ /* {{{ proto WaitGroup::__construct
+  * Create a WaitGroup
   */
- PHP_METHOD(Waitgroup,Wait){
- 	//printf("Waitgroup::Wait\n");
+ PHP_METHOD(WaitGroup,Wait){
+ 	//printf("WaitGroup::Wait\n");
 	
 	zval* wg       = NULL;
 
 	auto self = getThis();
-	wg = zend_read_property(ce_go_waitgroup_ptr, self, "handle",   sizeof("handle"), true TSRMLS_CC);
+	wg = zend_read_property(ce_go_wait_group_ptr, self, "handle",   sizeof("handle"), true TSRMLS_CC);
 
 	if(!wg)
 		RETURN_FALSE;
 	
-	auto lwg = Z_LVAL_P(wg);
-	php_api_go_waitgroup_wait( (void*)lwg );
+	auto l_wg = Z_LVAL_P(wg);
+	phpgo_go_wait_group_wait( (void*)l_wg );
 	
 	RETURN_TRUE;
  }
   /* }}} */ 
   
-  /* {{{ proto Waitgroup::__destruct
-  * Destruct the waitgroup
+  /* {{{ proto WaitGroup::__destruct
+  * Destruct the WaitGroup
   */
- PHP_METHOD(Waitgroup,__destruct){
+ PHP_METHOD(WaitGroup,__destruct){
 	 
-	//printf("Waitgroup::__destruct\n");
+	//printf("WaitGroup::__destruct\n");
 	
 	zval* self = getThis();
-	zval* wg = zend_read_property(ce_go_waitgroup_ptr, self, "handle", sizeof("handle"), true TSRMLS_CC);
+	zval* wg = zend_read_property(ce_go_wait_group_ptr, self, "handle", sizeof("handle"), true TSRMLS_CC);
 	
 	if(!wg)
 		RETURN_FALSE;
 	
-	auto lwg = Z_LVAL_P(wg);
-	php_api_go_waitgroup_destroy( (void*)lwg );
+	auto l_wg = Z_LVAL_P(wg);
+	phpgo_go_wait_group_destruct( (void*)l_wg );
  }
  /* }}} */
  
@@ -1370,7 +1373,8 @@ PHP_METHOD(Waitgroup,__construct){
    run the secheduler for a one pass*/
 PHP_METHOD(Scheduler, RunOnce)
 {
-	php_api_go_schedule_once();
+	phpgo_go_scheduler_run_once();
+	RETURN_TRUE;
 }
 /* }}} */
 
@@ -1378,7 +1382,8 @@ PHP_METHOD(Scheduler, RunOnce)
    run the secheduler until all go routines completed*/
 PHP_METHOD(Scheduler, RunJoinAll)
 {
-	php_api_go_schedule_all();
+	phpgo_go_scheduler_run_join_all();
+	RETURN_TRUE;
 }
 /* }}} */
 
@@ -1386,15 +1391,39 @@ PHP_METHOD(Scheduler, RunJoinAll)
    loop running the secheduler forever*/
 PHP_METHOD(Scheduler, RunForever)
 {
-	php_api_go_schedule_forever();
+	phpgo_go_scheduler_run_forever();
+	RETURN_TRUE;
 }
 /* }}} */
+
+#ifdef ZTS
+/* {{{ proto void go_schedule_forever(void)
+   loop running the secheduler forever*/
+PHP_METHOD(Scheduler, RunForeverMultiThreaded)
+{
+	uint64_t threads  = 0;
+	if( zend_parse_parameters(ZEND_NUM_ARGS() TSRMLS_CC, "l", (long*)&threads) == FAILURE ){
+        zend_error(E_ERROR, "phpgo: Scheduler::RunForeverMultiThreaded: getting parameter failure");
+		RETURN_FALSE;
+    }
+	
+	if(threads < 1){
+		zend_error(E_ERROR, "phpgo: Scheduler::RunForeverMultiThreaded: threads cannot be 0");
+		RETURN_FALSE;
+	}
+	
+	phpgo_go_scheduler_run_forever_multi_threaded(threads);
+	RETURN_TRUE; 
+}
+/* }}} */
+#endif
+
 
 /* {{{ proto void go_schedule_forever(void)
    loop running the secheduler forever*/
 PHP_METHOD(Runtime, NumGoroutine)
 {
-	RETURN_LONG( php_api_go_runtime_num_goroutine() );
+	RETURN_LONG( phpgo_go_runtime_num_goroutine() );
 }
 /* }}} */
 
@@ -1402,7 +1431,7 @@ PHP_METHOD(Runtime, NumGoroutine)
    loop running the secheduler forever*/
 PHP_METHOD(Runtime, Gosched)
 {
-	php_api_go_runtime_gosched();
+	phpgo_go_runtime_gosched();
 }
 /* }}} */
 
@@ -1439,7 +1468,7 @@ PHP_METHOD(Timer, Tick)
 	if(!chan)
 		RETURN_NULL();
 	
-	php_api_go_timer_tick(z_chan, chan, microseconds);
+	phpgo_go_timer_tick(z_chan, chan, microseconds);
 	
 	RETURN_ZVAL(z_chan, 1, 1);
 }
@@ -1479,7 +1508,7 @@ PHP_METHOD(Timer, After)
 	if(!chan)
 		RETURN_NULL();
 	
-	php_api_go_timer_after(z_chan, chan, microseconds);
+	phpgo_go_timer_after(z_chan, chan, microseconds);
 	
 	RETURN_ZVAL(z_chan, 1, 1);
 }

@@ -7,21 +7,23 @@ use \go\Scheduler;
 use \go\Timer;
 use \go\Runtime;
 
-echo "num g: ". runtime::NumGoroutine() . PHP_EOL;
 
-Runtime::Gosched();
-
-$time = Timer::After(1000*1000);
-
-var_dump($time);
-
-$v = $time->Pop();
-
-var_dump($v);
 
 //exit;
 
 if(false){
+	echo "num g: ". runtime::NumGoroutine() . PHP_EOL;
+
+	Runtime::Gosched();
+
+	$time = Timer::After(1000*1000);
+
+	var_dump($time);
+
+	$v = $time->Pop();
+
+	var_dump($v);
+
 	$mtx = new Mutex(false);
 	var_dump($mtx);
 
@@ -130,14 +132,15 @@ if(false){
 	}
 
 	f();
-
+	
+	Scheduler::RunJoinAll();
 }
 
 $ch = new Chan(1);
 
 //var_dump( go_chan_close($ch) );
 
-Scheduler::RunJoinAll();
+
 //go_schedule_all();
 
 
@@ -159,7 +162,7 @@ go( function() use($ch, $v){
 			
 			echo "receive v: $value\n";
 		}),
-		_case(Timer::After(2000*1000), "->", null, function() use($done){
+		_case(Timer::After(1000*1000), "->", null, function() use($done){
 			
 			$done->Push( array("a"=>"b", "c"=>"d"));
 			echo "timer elapsed---------------\n";
@@ -177,7 +180,7 @@ go( function() use($ch, $v){
 		})
 	);
 	
-	Runtime::Gosched();
+	//Runtime::Gosched();
 	
 	echo "num g: ". runtime::NumGoroutine() . PHP_EOL;
 	
@@ -209,9 +212,9 @@ go( function() use($ch, $v){
 			//$done->Close();
 		}
 		
-		Runtime::Gosched();
+		//Runtime::Gosched();
 		
-		if($i++>10) break;
+		if($i++>100) break;
 		usleep(50*1000);
 	}
 	
@@ -243,7 +246,15 @@ go(function(){
 
 //$v = go_chan_pop();
 
-Scheduler::RunJoinAll();
+//Scheduler::RunForeverMultiThreaded(4);
+
+$ch = new Chan(1);
+$ch->Pop();
+
+
+//$ch->Pop();
+
+//Scheduler::RunJoinAll();
 //go_schedule_all();
 echo "num g: ". Runtime::NumGoroutine() . PHP_EOL;
 

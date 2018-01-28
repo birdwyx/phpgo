@@ -1,10 +1,11 @@
 #include <libgo/coroutine.h>
 #include <libgo/task.h>
 #include <libgo/freeable.h>
-#include <libgo/tasklocalstorage.h>
+#include <libgo/task_local_storage.h>
 #include <iostream>
 #include <unistd.h>
 #include <atomic>
+#include <boost/thread.hpp>
 
 using namespace std;
 using namespace co;
@@ -12,7 +13,7 @@ using namespace co;
 #include "stdinc.h"
 #include "go.h"
 #include "mutex.h"
-#include "waitgroup.h"
+#include "wait_group.h"
 
 extern zend_class_entry* ce_go_chan_ptr;
 
@@ -23,7 +24,7 @@ extern zend_class_entry* ce_go_chan_ptr;
 #endif
 
 #define __PHPGO_CONTEXT_FIELDS__ 	                    \
-	TSRMLS_FIELD;                                       \
+	TSRMLS_FIELD;     /*ZTS: void ***tsrm_ls;*/         \
 	struct _zend_execute_data* EG_current_execute_data; \
 	zend_vm_stack 			   EG_argument_stack;       \
 	zend_class_entry*		   EG_scope;                \
@@ -49,11 +50,11 @@ struct PhpgoSchedulerContext{
 	__PHPGO_CONTEXT_FIELDS__
 };
 
-class PhpgoTaskListener : public ::co::Scheduler::TaskListener{
+// the scheduler may be executed in multiple thread: 
+// use thread local variable to store the scheduler EG's	
+static thread_local PhpgoSchedulerContext scheduler_ctx;
 	
-	// the scheduler may be executed in multiple thread: 
-	// use thread local variable to store the scheduler EG's	
-	static thread_local PhpgoSchedulerContext scheduler_ctx;
+class PhpgoTaskListener : public Scheduler::TaskListener{
 	
 	// the go routine sepecific EG's are stored in task local storage
 	// thus each task has it's own copy
@@ -89,13 +90,27 @@ public:
 		PhpgoSchedulerContext* sched_ctx    =  &scheduler_ctx;
 		
 	#ifdef ZTS
+	
+		/*
+		* for optimal performance:
+		* cache the tsrm_ls for this scheduler thread into this scheduler context
+		* so that we don't need to fetch from the operating system tls every time.
+		*/
 		if( UNEXPECTED(!sched_ctx->TSRMLS_C) ){
 			//this is the first time task run, 
 			//fetch and store the thread specific tsrm_ls to local context
-			TSRMLS_FETCH();  
-			TSRMLS_SET_CTX(sched_ctx->TSRMLS_C);
+			TSRMLS_FETCH();                          // void ***tsrm_ls = (void ***) ts_resource_ex(0, NULL)
+			TSRMLS_SET_CTX(sched_ctx->TSRMLS_C);     // sched_ctx->tsrm_ls = (void ***) tsrm_ls
 		}
-		TSRMLS_FETCH_FROM_CTX(sched_ctx->TSRMLS_C);
+		
+		/*
+		* Fetch the thread specific tsrm_ls from the scheduler context 
+		* (which is thread local) this will also work under work-steal since
+		* the tsrm_ls fetched is always for the current thread running 
+		* the scheduler, thus the EG saved in onSwapIn() and retored in
+		* onSwapOut() are always of this scheduler
+		*/
+		TSRMLS_FETCH_FROM_CTX(sched_ctx->TSRMLS_C);  //	void ***tsrm_ls = (void ***)sched_ctx->tsrm_ls
 	#endif
 		
 		// save the scheduler EGs first
@@ -125,6 +140,8 @@ public:
 		EG(error_zval           )           =  ctx->EG_error_zval          ;
 		EG(error_zval_ptr       )           =  ctx->EG_error_zval_ptr      ;
 		EG(user_error_handler   )           =  ctx->EG_user_error_handler  ;
+		
+		//printf("---------->onSwapIn(%ld) returns<-----------\n", task_id);
 
 	}
 
@@ -142,7 +159,7 @@ public:
 		
 	#ifdef ZTS
 		//assert(sched_ctx->TSRMLS_C);
-		TSRMLS_FETCH_FROM_CTX(sched_ctx->TSRMLS_C);
+		TSRMLS_FETCH_FROM_CTX(sched_ctx->TSRMLS_C); //	void ***tsrm_ls = (void ***)sched_ctx->tsrm_ls
 	#endif
 		
 		PhpgoContext* ctx = (PhpgoContext*)TaskLocalStorage::GetSpecific(phpgo_context_key);
@@ -174,10 +191,10 @@ public:
 		EG(error_zval           )     =  sched_ctx->EG_error_zval          ;
 		EG(error_zval_ptr       )     =  sched_ctx->EG_error_zval_ptr      ;
 		EG(user_error_handler   )     =  sched_ctx->EG_user_error_handler  ;
+		
+		//printf("---------->onSwapOut(%ld) returns<-----------\n", task_id);
 	}
 };
-
-thread_local PhpgoSchedulerContext   PhpgoTaskListener::scheduler_ctx;
 
 bool phpgo_initialize(){
 	PhpgoTaskListener* listener = new PhpgoTaskListener();
@@ -234,7 +251,7 @@ void dump_zval(zval* zv){
 	//zv->refcount__gc = 3;
 }
 
-void* php_api_go(zend_uint argc, zval ***args TSRMLS_DC){
+void* phpgo_go(zend_uint argc, zval ***args TSRMLS_DC){
 	
 	#define GR_VM_STACK_PAGE_SIZE (256)   // 256 zval* = 2048 byte
 	#define VM_STACK_PUSH(stack, v)  do { *((stack)->top++) = (void*)(v); } while(0)
@@ -252,11 +269,13 @@ void* php_api_go(zend_uint argc, zval ***args TSRMLS_DC){
 	}
 	VM_STACK_PUSH(go_routine_vm_stack, (unsigned long)argc);
 
-	co::Task* tk = go_stack(32*1024) [go_routine_vm_stack] {
+	co::Task* tk = go_stack(1024*1024) [go_routine_vm_stack] {
 		// the thread to run this go routine may not be the same as the thread calling the
-		// php_api_go(), thus we need to fetch explictly the TSRMLS for current thread
-		// todo: verify this can work with libgo work-steal...
-		TSRMLS_FETCH();
+		// phpgo_go(), thus we need to fetch explictly the TSRMLS for current thread
+		// 
+	#ifdef ZTS
+		TSRMLS_FETCH_FROM_CTX(scheduler_ctx.TSRMLS_C); //void ***tsrm_ls = (void ***)scheduler_ctx.tsrm_ls
+	#endif
 		
 		EG(current_execute_data) = NULL;
 		
@@ -367,7 +386,7 @@ void dump_eg(uint64_t task_id){
 	#endif
 }
 
-void php_api_go_schedule_once(){
+void phpgo_go_scheduler_run_once(){
 	if (co_sched.IsCoroutine()) {
 		zend_error(E_ERROR, "phpgo: error: go_schedule_once must be called outside a go routine\n");
 		return;
@@ -375,7 +394,7 @@ void php_api_go_schedule_once(){
 	co_sched.Run();
 }
 
-void php_api_go_schedule_all(){
+void phpgo_go_scheduler_run_join_all(){
 	if (co_sched.IsCoroutine()) {
 		zend_error(E_ERROR, "phpgo: error: go_schedule_all must be called outside a go routine\n");
 		return;
@@ -383,7 +402,7 @@ void php_api_go_schedule_all(){
 	co_sched.RunUntilNoTask();
 }
 
-void php_api_go_schedule_forever(){
+void phpgo_go_scheduler_run_forever(){
 	if (co_sched.IsCoroutine()) {
 		zend_error(E_ERROR, "phpgo: error: go_schedule_forever must be called outside a go routine\n");
 		return;
@@ -391,12 +410,30 @@ void php_api_go_schedule_forever(){
 	co_sched.RunLoop();
 }
 
-void php_api_go_debug(unsigned long debug_flag){
+#ifdef ZTS
+void phpgo_go_scheduler_run_forever_multi_threaded(uint64_t threads){
+	if (co_sched.IsCoroutine()) {
+		zend_error(E_ERROR, "phpgo: error: go_schedule_forever_multi_threaded must be called outside a go routine\n");
+		return;
+	}
+	
+	boost::thread_group tg;
+    for (int i = 0; i < threads; ++i){
+        tg.create_thread([] {
+			for(;;){
+				co_sched.Run();
+			}
+        });
+	}
+}
+#endif
+
+void phpgo_go_debug(unsigned long debug_flag){
 	co_sched.GetOptions().debug = debug_flag;
 }
 
 
-void* php_api_go_chan_create(unsigned long capacity){
+void* phpgo_go_chan_create(unsigned long capacity){
 	
 	CHANNEL_INFO* chinfo = new CHANNEL_INFO;
 	chinfo->closed = false;
@@ -404,7 +441,7 @@ void* php_api_go_chan_create(unsigned long capacity){
 	return chinfo;
 }
 
-void  php_api_go_chan_destroy(void* handle){
+void  phpgo_go_chan_destroy(void* handle){
 	
 	//assert(handle);
 	
@@ -417,7 +454,7 @@ void  php_api_go_chan_destroy(void* handle){
 	delete chinfo;
 }
 
-void  php_api_go_chan_close(void* handle){
+void  phpgo_go_chan_close(void* handle){
 	
 	//assert(handle);
 	
@@ -425,7 +462,7 @@ void  php_api_go_chan_close(void* handle){
 	chinfo->closed = true;
 }
 
-void* php_api_go_chan_push(void* handle, zval* z){
+void* phpgo_go_chan_push(void* handle, zval* z){
 	
 	CHANNEL_INFO* chinfo = (CHANNEL_INFO*)handle;
 	
@@ -439,7 +476,7 @@ void* php_api_go_chan_push(void* handle, zval* z){
 	return handle;
 }
 
-zval* php_api_go_chan_pop(void* handle){
+zval* phpgo_go_chan_pop(void* handle){
 	
 	zval* z = nullptr;
 	
@@ -475,7 +512,7 @@ zval* php_api_go_chan_pop(void* handle){
 }
 
 /*convert chan zval to the channel ptr*/
-Channel<zval*>* _php_api_go_chan_z2p(zval* z_chan TSRMLS_DC){
+Channel<zval*>* _phpgo_go_chan_z2p(zval* z_chan TSRMLS_DC){
 	
 	auto z_handler = zend_read_property(ce_go_chan_ptr, z_chan, "handle",   sizeof("handle"), true TSRMLS_CC);
 	if( !z_handler || Z_TYPE_P(z_handler) == IS_NULL ){
@@ -491,7 +528,7 @@ Channel<zval*>* _php_api_go_chan_z2p(zval* z_chan TSRMLS_DC){
 }
 
 /*convert chan zval to the channel CHANNEL_INFO*/
-CHANNEL_INFO* _php_api_go_chan_z2i(zval* z_chan TSRMLS_DC){
+CHANNEL_INFO* _phpgo_go_chan_z2i(zval* z_chan TSRMLS_DC){
 	
 	auto z_handler = zend_read_property(ce_go_chan_ptr, z_chan, "handle",   sizeof("handle"), true TSRMLS_CC);
 	if( !z_handler || Z_TYPE_P(z_handler) == IS_NULL ){
@@ -503,7 +540,7 @@ CHANNEL_INFO* _php_api_go_chan_z2i(zval* z_chan TSRMLS_DC){
 	return chinfo;
 }
 
-bool php_api_go_chan_try_push(void* handle, zval* z){
+bool phpgo_go_chan_try_push(void* handle, zval* z){
 	
 	CHANNEL_INFO* chinfo = (CHANNEL_INFO*)handle;
 	
@@ -520,7 +557,7 @@ bool php_api_go_chan_try_push(void* handle, zval* z){
 	return false;
 }
 
-zval* php_api_go_chan_try_pop(void* handle){
+zval* phpgo_go_chan_try_pop(void* handle){
 	
 	zval* z = nullptr;
 	CHANNEL_INFO* chinfo = (CHANNEL_INFO*)handle;
@@ -542,11 +579,11 @@ zval* php_api_go_chan_try_pop(void* handle){
  * mutex
  */
  
-void* php_api_go_mutex_create(bool signaled){
+void* phpgo_go_mutex_create(bool signaled){
 	return new ::co::CoRecursiveMutex(signaled);
 }
 
-void php_api_go_mutex_lock(void* mutex){
+void phpgo_go_mutex_lock(void* mutex){
 	auto mutex_obj = (::co::CoRecursiveMutex*)mutex;
 	
 	// if it's not in any go routine,
@@ -563,22 +600,22 @@ void php_api_go_mutex_lock(void* mutex){
 	mutex_obj->lock();
 }
 
-void php_api_go_mutex_unlock(void* mutex){
+void phpgo_go_mutex_unlock(void* mutex){
 	auto mutex_obj = (::co::CoRecursiveMutex*)mutex;
 	mutex_obj->unlock();
 }
 
-bool php_api_go_mutex_try_lock(void* mutex){
+bool phpgo_go_mutex_try_lock(void* mutex){
 	auto mutex_obj = (::co::CoRecursiveMutex*)mutex;
 	return mutex_obj->try_lock();
 }
 
-bool php_api_go_mutex_is_lock(void* mutex){
+bool phpgo_go_mutex_is_lock(void* mutex){
 	auto mutex_obj = (::co::CoRecursiveMutex*)mutex;
 	return mutex_obj->is_lock();
 }
 
-void php_api_go_mutex_destroy(void* mutex){
+void phpgo_go_mutex_destroy(void* mutex){
 	auto mutex_obj = (::co::CoRecursiveMutex*)mutex;
 	delete mutex_obj;
 }
@@ -586,40 +623,40 @@ void php_api_go_mutex_destroy(void* mutex){
 /*
 * waitgroup
 */
-void* php_api_go_waitgroup_create(){
+void* phpgo_go_wait_group_create(){
 	return new ::co::CoWaitGroup();
 }
 
-int64_t  php_api_go_waitgroup_add(void* wg, int64_t delta){
+int64_t  phpgo_go_wait_group_add(void* wg, int64_t delta){
 	auto wg_obj = (::co::CoWaitGroup*)wg;
 	return wg_obj->Add(delta);
 }
 
-int64_t  php_api_go_waitgroup_done(void* wg){
+int64_t  phpgo_go_wait_group_done(void* wg){
 	auto wg_obj = (::co::CoWaitGroup*)wg;
 	return wg_obj->Done();
 }
 
-int64_t  php_api_go_waitgroup_count(void* wg){
+int64_t  phpgo_go_wait_group_count(void* wg){
 	auto wg_obj = (::co::CoWaitGroup*)wg;
 	return wg_obj->Count();
 }
 
-void  php_api_go_waitgroup_wait(void* wg){
+void  phpgo_go_wait_group_wait(void* wg){
 	auto wg_obj = (::co::CoWaitGroup*)wg;
 	wg_obj->Wait();
 }
 
-bool  php_api_go_waitgroup_destroy(void* wg){
+bool  phpgo_go_wait_group_destruct(void* wg){
 	auto wg_obj = (::co::CoWaitGroup*)wg;
 	delete wg_obj;
 }
 
-uint64_t php_api_go_runtime_num_goroutine(){
+uint64_t phpgo_go_runtime_num_goroutine(){
 	return co_sched.TaskCount();
 }
 
-void php_api_go_runtime_gosched(){
+void phpgo_go_runtime_gosched(){
 	if(co_sched.IsCoroutine()){
 		co_sched.CoYield();
 	}else{
@@ -630,9 +667,9 @@ void php_api_go_runtime_gosched(){
 /*
 * select - case
 */
-zval*  php_api_go_select(GO_SELECT_CASE* case_array, long case_count TSRMLS_DC){
+zval*  phpgo_select(GO_SELECT_CASE* case_array, long case_count TSRMLS_DC){
 	
-	//printf("php_api_go_select\n");
+	//printf("phpgo_select\n");
 	
 	if(!case_count) return nullptr;
 	
@@ -653,18 +690,18 @@ zval*  php_api_go_select(GO_SELECT_CASE* case_array, long case_count TSRMLS_DC){
 		switch(case_array[i].case_type){
 		case GO_CASE_TYPE_CASE:
 			z_chan = case_array[i].chan;
-			chinfo = _php_api_go_chan_z2i(z_chan TSRMLS_CC);
+			chinfo = _phpgo_go_chan_z2i(z_chan TSRMLS_CC);
 			if( !chinfo ){
-				zend_error(E_ERROR, "phpgo: php_api_go_select: null channel");
+				zend_error(E_ERROR, "phpgo: phpgo_select: null channel");
 				return nullptr;
 			}
 			if(case_array[i].op == GO_CASE_OP_READ){
 				
-				// php_api_go_chan_try_pop:
+				// phpgo_go_chan_try_pop:
 				// if data not ready to read, return nullptr
 				// if channel is closed, return ZVAL_NULL
 				// otherwise return the read zval
-				zval* data = php_api_go_chan_try_pop(chinfo);
+				zval* data = phpgo_go_chan_try_pop(chinfo);
 				if(data) {
 					//printf("receive: \n");
 					//dump_zval(data);
@@ -690,7 +727,7 @@ zval*  php_api_go_select(GO_SELECT_CASE* case_array, long case_count TSRMLS_DC){
 					goto exit_while;
 				}
 			}else if(case_array[i].op == GO_CASE_OP_WRITE){
-				auto ready = php_api_go_chan_try_push(chinfo, case_array[i].value);				
+				auto ready = phpgo_go_chan_try_push(chinfo, case_array[i].value);				
 				if(ready){
 					zval_add_ref(&case_array[i].value);
 					selected_case = &case_array[i];
@@ -725,6 +762,8 @@ exit_while:
 			argc    = 1;
 		}
 		
+		//printf("phpgo_select ... about to call_user_function_ex\n");
+		
 		zval_add_ref(&selected_case->callback);
 		if( call_user_function_ex(
 			EG(function_table), 
@@ -739,45 +778,51 @@ exit_while:
 			zend_error(E_ERROR, "phpgo: execution of go routine faild");
 			//goto cleanup;
 		}
+		
+		//printf("phpgo_select ... after call_user_function_ex\n");
 		zval_ptr_dtor(&selected_case->callback);
 		//zval_ptr_dtor(&return_value);
 		
 		if(args) efree(args);
 	}
 	
+	//printf("phpgo_select ... before CoYield\n");
+	
 	g_Scheduler.CoYield();
+	
+	//printf("phpgo_select ... after CoYield\n");
 	
 	return return_value;
 }
 
-void php_api_go_timer_tick(zval* z_chan, void* h_chan, uint64_t microseconds){
+void phpgo_go_timer_tick(zval* z_chan, void* h_chan, uint64_t microseconds){
 	
 	// must add ref the z_chan so that it won't be release before the go routine returns
 	zval_add_ref(&z_chan);
-	go_stack(4*1024) [=] ()mutable {
+	go_stack(32*1024) [=] ()mutable {
 		while(true){
 			zval* z;
 			MAKE_STD_ZVAL(z);
 			ZVAL_LONG(z, 1);
 			
 			usleep(microseconds);
-			php_api_go_chan_push(h_chan, z);
+			phpgo_go_chan_push(h_chan, z);
 		}
 		//zval_ptr_dtor(&z_chan);
 	};
 }
 
-void php_api_go_timer_after(zval* z_chan, void* h_chan, uint64_t microseconds){
+void phpgo_go_timer_after(zval* z_chan, void* h_chan, uint64_t microseconds){
 	
 	// must add ref the z_chan so that it won't be release before the go routine returns
 	zval_add_ref(&z_chan);
-	go_stack(4*1024) [=] ()mutable {
+	go_stack(32*1024) [=] ()mutable {
 		zval* z;
 		MAKE_STD_ZVAL(z);
 		ZVAL_LONG(z, 1);
 		
 		usleep(microseconds);
-		php_api_go_chan_push(h_chan, z);
+		phpgo_go_chan_push(h_chan, z);
 		zval_ptr_dtor(&z_chan);
 	};
 }
