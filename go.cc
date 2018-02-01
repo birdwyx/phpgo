@@ -14,6 +14,7 @@ using namespace co;
 #include "go.h"
 #include "mutex.h"
 #include "wait_group.h"
+#include "defer.h"
 
 extern zend_class_entry* ce_go_chan_ptr;
 
@@ -59,9 +60,11 @@ class PhpgoTaskListener : public Scheduler::TaskListener{
 	// the go routine sepecific EG's are stored in task local storage
 	// thus each task has it's own copy
 	kls_key_t                         phpgo_context_key;
+	Scheduler::TaskListener*          old_task_listener;
 	
 public:
-	PhpgoTaskListener(){
+	PhpgoTaskListener(Scheduler::TaskListener* task_listener){
+		old_task_listener = task_listener;
 		phpgo_context_key = TaskLocalStorage::CreateKey("PhpgoContext");
 	}
 	
@@ -79,7 +82,11 @@ public:
 	 * @prarm eptr
 	 */
 	virtual void onSwapIn(uint64_t task_id) noexcept {
-		//printf("---------->onSwapIn(%ld)<-----------\n", task_id);
+		//printf("---------->onSwapIn(%ld)<-----------\n", task_id);'
+		
+		if(old_task_listener){
+			old_task_listener->onSwapIn(task_id);
+		}
 		
 		PhpgoContext* ctx;
 		if( !(ctx = (PhpgoContext*)TaskLocalStorage::GetSpecific(phpgo_context_key)) ){
@@ -154,6 +161,9 @@ public:
 	 */
 	virtual void onSwapOut(uint64_t task_id) noexcept {
 		//printf("---------->onSwapOut(%ld)<-----------\n", task_id);
+		if(old_task_listener){
+			old_task_listener->onSwapOut(task_id);
+		}
 
 		PhpgoSchedulerContext* sched_ctx    =  &scheduler_ctx;
 		
@@ -197,8 +207,9 @@ public:
 };
 
 bool phpgo_initialize(){
-	PhpgoTaskListener* listener = new PhpgoTaskListener();
+	PhpgoTaskListener* listener = new PhpgoTaskListener( co_sched.GetTaskListener() );
 	co_sched.SetTaskListener(listener);
+	co_sched.GetOptions().enable_work_steal = false;
 	return true;
 }
 
@@ -251,6 +262,15 @@ void dump_zval(zval* zv){
 	//zv->refcount__gc = 3;
 }
 
+static void copy_closure_static_var(zval **var TSRMLS_DC, int num_args, va_list args, zend_hash_key *key) /* {{{ */
+{
+	HashTable *target = va_arg(args, HashTable *);
+
+	SEPARATE_ZVAL_TO_MAKE_IS_REF(var);
+	Z_ADDREF_PP(var);
+	zend_hash_quick_update(target, key->arKey, key->nKeyLength, key->h, var, sizeof(zval *), NULL);
+}
+
 void* phpgo_go(zend_uint argc, zval ***args TSRMLS_DC){
 	
 	#define GR_VM_STACK_PAGE_SIZE (256)   // 256 zval* = 2048 byte
@@ -261,6 +281,59 @@ void* phpgo_go(zend_uint argc, zval ***args TSRMLS_DC){
 	zend_vm_stack go_routine_vm_stack = zend_vm_stack_new_page( argc > GR_VM_STACK_PAGE_SIZE ? argc : GR_VM_STACK_PAGE_SIZE );
 	VM_STACK_PUSH(go_routine_vm_stack, NULL);
 	
+	/*
+	char *func_name                  = NULL; 
+	char *error                      = NULL;
+	zend_fcall_info_cache *fci_cache = (zend_fcall_info_cache*)emalloc(sizeof(zend_fcall_info_cache));
+	
+	if(!fci_cache){
+		efree(go_routine_vm_stack);
+		return nullptr;
+	}
+	
+	defer{
+		if(func_name) efree(func_name);
+		if(error) efree(error);
+		efree(fci_cache);
+	};
+		
+	if (!zend_is_callable_ex(*args[0], NULL, IS_CALLABLE_CHECK_SILENT, &func_name, NULL, fci_cache, &error TSRMLS_CC)) {
+		if (error) {
+			zend_error(E_WARNING, "phpgo: invalid callback %s, %s", func_name, error);
+		}
+		return nullptr;
+	}
+	
+	auto op_array = &fci_cache->function_handler->op_array;
+	(op_array->refcount)++;
+	
+	*/
+	
+	/* Create a clone of closure, because it may be destroyed */
+	/*
+	if (op_array->fn_flags & ZEND_ACC_CLOSURE) {
+		zend_op_array *op_array_copy = (zend_op_array*)emalloc(sizeof(zend_op_array));
+		*op_array_copy = *op_array;
+
+		(*op_array->refcount)++;
+		op_array->run_time_cache = NULL;
+		if (op_array->static_variables) {
+			ALLOC_HASHTABLE(op_array_copy->static_variables);
+			zend_hash_init(
+				op_array_copy->static_variables, 
+				zend_hash_num_elements(op_array->static_variables),
+				NULL, ZVAL_PTR_DTOR, 0
+			);
+			zend_hash_apply_with_arguments(
+				op_array->static_variables TSRMLS_CC,
+				(apply_func_args_t) copy_closure_static_var,
+				1, op_array_copy->static_variables
+			);
+		}
+
+		op_array = op_array_copy;
+	}*/
+	
 	//store the parameters into the go routine's own stack
 	//so that the go routine can then retrieve via zend_get_parameters_array_ex()
 	for(zend_uint i = 0; i < argc; i++ ){
@@ -269,7 +342,7 @@ void* phpgo_go(zend_uint argc, zval ***args TSRMLS_DC){
 	}
 	VM_STACK_PUSH(go_routine_vm_stack, (unsigned long)argc);
 
-	co::Task* tk = go_stack(1024*1024) [go_routine_vm_stack] {
+	co::Task* tk = go_stack(32*1024) [go_routine_vm_stack] {
 		// the thread to run this go routine may not be the same as the thread calling the
 		// phpgo_go(), thus we need to fetch explictly the TSRMLS for current thread
 		// 
@@ -282,18 +355,40 @@ void* phpgo_go(zend_uint argc, zval ***args TSRMLS_DC){
 		//set the argument stack to the dedicate stack
 		EG(argument_stack) = go_routine_vm_stack;
 		
-		zval* return_value = NULL;
-		MAKE_STD_ZVAL(return_value);
-		
 		char *func_name                  = NULL; 
 		char *error                      = NULL;
 		zend_fcall_info_cache *fci_cache = (zend_fcall_info_cache*)emalloc(sizeof(zend_fcall_info_cache));
 		zend_uint argc                   = VM_STACK_NUM_ARGS();
 		zval*** args                     = (zval ***)safe_emalloc(argc, sizeof(zval **), 0);
 		
+		if(!fci_cache) return;
+		if(!args) return;
+		
+		zval* return_value = NULL;
+		MAKE_STD_ZVAL(return_value);
+		
+		defer{
+			if(func_name) 	efree(func_name);
+			if(error)       efree(error);
+			
+			efree(fci_cache);
+			
+			//we've add-ref'ed to the callback & parameters outside this go routine, so
+			//after complete using the callback, decrease the reference to them
+			for(zend_uint i = 0; i < argc; i++ ){
+				zval_ptr_dtor(args[i]);
+			}
+			efree(args);
+			
+			if(return_value) zval_ptr_dtor(&return_value);
+			
+			//free the vm stack since this go routine is going to destroy
+			zend_vm_stack_destroy(TSRMLS_C);
+		};
+		
 		if (zend_get_parameters_array_ex(argc, args) == FAILURE) {
 			zend_error(E_ERROR, "phpgo: getting go routine parameters faild");
-			goto cleanup;
+			return;
 		}
 		
 		/* go (callable $callback, callback_arg1, callback_arg2...), then
@@ -303,7 +398,7 @@ void* phpgo_go(zend_uint argc, zval ***args TSRMLS_DC){
 			if (error) {
 				zend_error(E_WARNING, "phpgo: invalid callback %s, %s", func_name, error);
 			}
-			goto cleanup;
+			return;
 		}
 		
 		// if any arg of the callback should be sent by ref, if yes, set the arg to pass-by-ref
@@ -324,66 +419,13 @@ void* phpgo_go(zend_uint argc, zval ***args TSRMLS_DC){
 			NULL TSRMLS_CC
 		) != SUCCESS) {
 			zend_error(E_ERROR, "phpgo: execution of go routine faild");
-			goto cleanup;
+			return;
 		}
-	
-	cleanup:
-	
-		if (func_name) {
-			efree(func_name);
-		}
-		if(error){
-			efree(error);
-		}
-		
-		//we've add-ref'ed to the callback & parameters outside this go routine, so
-		//after complete using the callback, decrease the reference to them
-		for(zend_uint i = 0; i < argc; i++ ){
-			zval_ptr_dtor(args[i]);
-		}
-		
-		efree(args);
-		zval_ptr_dtor(&return_value);
-		
-		//free the vm stack since this go routine is going to destroy
-		zend_vm_stack_destroy(TSRMLS_C);
 	};
 	
 	//tk->SetSwapHooks(swap_in_hook, swap_out_hook, swap_in_error_hook, swap_out_error_hook);
 	
 	return tk;
-}
-
-void dump_eg(uint64_t task_id){
-	#if 0
-	printf( "\n");
-	printf( "EG(argument_stack): %p\n", EG(argument_stack));
-	printf( "EG(argument_stack)->top/end/prev: %p/%p/%p\n", 
-			EG(argument_stack)->top, 
-			EG(argument_stack)->end, 
-			EG(argument_stack)->prev
-	);
-	printf( "\n");
-	if( cls[1000].EG_argument_stack){
-		printf( "cls[1000].EG_argument_stack: %p\n", cls[1000].EG_argument_stack);
-		printf( "cls[1000].EG_argument_stack->top/end/prev: %p/%p/%p\n", 
-				cls[1000].EG_argument_stack->top, 
-				cls[1000].EG_argument_stack->end, 
-				cls[1000].EG_argument_stack->prev
-		);
-		printf("&cls[1000]: %p", &cls[1000]);
-	}
-	printf( "\n");
-	if(cls[task_id].EG_argument_stack){
-		printf( "cls[%d].EG_argument_stack: %p\n", task_id, cls[task_id].EG_argument_stack);
-		printf( "cls[%d].EG_argument_stack->top/end/prev: %p/%p/%p\n", 
-				task_id,
-				cls[task_id].EG_argument_stack->top, 
-				cls[task_id].EG_argument_stack->end, 
-				cls[task_id].EG_argument_stack->prev
-		);
-	}
-	#endif
 }
 
 void phpgo_go_scheduler_run_once(){
@@ -686,7 +728,7 @@ zval*  phpgo_select(GO_SELECT_CASE* case_array, long case_count TSRMLS_DC){
 	CHANNEL_INFO* chinfo = nullptr;
 	
 	auto i = start;
-	do{		
+	do{
 		switch(case_array[i].case_type){
 		case GO_CASE_TYPE_CASE:
 			z_chan = case_array[i].chan;
@@ -795,33 +837,33 @@ exit_while:
 	return return_value;
 }
 
-void phpgo_go_timer_tick(zval* z_chan, void* h_chan, uint64_t microseconds){
+void phpgo_go_timer_tick(zval* z_chan, void* h_chan, uint64_t micro_seconds){
 	
 	// must add ref the z_chan so that it won't be release before the go routine returns
 	zval_add_ref(&z_chan);
-	go_stack(32*1024) [=] ()mutable {
+	go_stack(4*1024) [=] ()mutable {
 		while(true){
 			zval* z;
 			MAKE_STD_ZVAL(z);
 			ZVAL_LONG(z, 1);
 			
-			usleep(microseconds);
+			usleep(micro_seconds);
 			phpgo_go_chan_push(h_chan, z);
 		}
 		//zval_ptr_dtor(&z_chan);
 	};
 }
 
-void phpgo_go_timer_after(zval* z_chan, void* h_chan, uint64_t microseconds){
+void phpgo_go_timer_after(zval* z_chan, void* h_chan, uint64_t micro_seconds){
 	
 	// must add ref the z_chan so that it won't be release before the go routine returns
 	zval_add_ref(&z_chan);
-	go_stack(32*1024) [=] ()mutable {
+	go_stack(4*1024) [=] ()mutable {
 		zval* z;
 		MAKE_STD_ZVAL(z);
 		ZVAL_LONG(z, 1);
 		
-		usleep(microseconds);
+		usleep(micro_seconds);
 		phpgo_go_chan_push(h_chan, z);
 		zval_ptr_dtor(&z_chan);
 	};

@@ -114,11 +114,11 @@ ZEND_BEGIN_ARG_INFO_EX(arginfo_go_selector_ctor, 0, 0, 1)
 ZEND_END_ARG_INFO()
 
 ZEND_BEGIN_ARG_INFO_EX(arginfo_go_timer_tick, 0, 0, 1)
-	ZEND_ARG_INFO(0, microseconds)
+	ZEND_ARG_INFO(0, micro_seconds)
 ZEND_END_ARG_INFO()
 
 ZEND_BEGIN_ARG_INFO_EX(arginfo_go_timer_after, 0, 0, 1)
-	ZEND_ARG_INFO(0, microseconds)
+	ZEND_ARG_INFO(0, micro_seconds)
 ZEND_END_ARG_INFO()
 
 ZEND_BEGIN_ARG_INFO_EX(arginfo_go_selector_loop, 0, 0, 1)
@@ -1441,8 +1441,8 @@ PHP_METHOD(Timer, Tick)
 {
 	//printf("Timer::Tick\n");
 	
-	uint64_t microseconds  = 0;
-	if( zend_parse_parameters(ZEND_NUM_ARGS() TSRMLS_CC, "l", (long*)&microseconds) == FAILURE ){
+	uint64_t micro_seconds  = 0;
+	if( zend_parse_parameters(ZEND_NUM_ARGS() TSRMLS_CC, "l", (long*)&micro_seconds) == FAILURE ){
         zend_error(E_ERROR, "phpgo: Timer::Tick: getting parameter failure");
 		RETURN_NULL();
     }
@@ -1468,7 +1468,7 @@ PHP_METHOD(Timer, Tick)
 	if(!chan)
 		RETURN_NULL();
 	
-	phpgo_go_timer_tick(z_chan, chan, microseconds);
+	phpgo_go_timer_tick(z_chan, chan, micro_seconds);
 	
 	RETURN_ZVAL(z_chan, 1, 1);
 }
@@ -1481,8 +1481,8 @@ PHP_METHOD(Timer, After)
 {
 	//printf("Timer::After\n");
 	
-	uint64_t microseconds  = 0;
-	if( zend_parse_parameters(ZEND_NUM_ARGS() TSRMLS_CC, "l", (long*)&microseconds) == FAILURE ){
+	uint64_t micro_seconds  = 0;
+	if( zend_parse_parameters(ZEND_NUM_ARGS() TSRMLS_CC, "l", (long*)&micro_seconds) == FAILURE ){
         zend_error(E_ERROR, "phpgo: Timer::Tick: getting parameter failure");
 		RETURN_NULL();
     }
@@ -1508,7 +1508,7 @@ PHP_METHOD(Timer, After)
 	if(!chan)
 		RETURN_NULL();
 	
-	phpgo_go_timer_after(z_chan, chan, microseconds);
+	phpgo_go_timer_after(z_chan, chan, micro_seconds);
 	
 	RETURN_ZVAL(z_chan, 1, 1);
 }
