@@ -7,11 +7,135 @@ use \go\Scheduler;
 use \go\Timer;
 use \go\Runtime;
 
+if(0){
+	$ch = new Chan(["name"=>"dd", "copy"=>true, "capacity"=>1]);
+	
+	var_dump($ch);
+	
+	exit;
+}
 
+if(0){
+	class T extends Thread{
+		public function run() {
+			while(true){
+				echo "about to run\n";
+				//Scheduler::RunJoinAll();
+				sleep(1);
+				echo "all tasks completed\n";
+				break;
+			}
+		}
+	}
+	$t1 = new T();
+	$t1->start();
+	$t1->join();
+	echo "Main trhead: after run\n";
+	exit;
+}
+
+if(0){
+	
+	$ch = new Chan(1,"dd",true);
+	var_dump($ch);
+	
+	$ch1 = new Chan("dd");
+	
+	var_dump($ch1);
+	
+	go(function() use($ch){
+		echo "1\n";
+		$i = 0;
+		while($i<300){
+			$ch->Push($i);
+			$i++;
+			//usleep(1000*10);
+		}
+		echo "1.o\n";
+	});
+	
+	go(function() use($ch){
+		echo "2\n";
+		
+		$i = 0;
+		while(true){
+			$i++;
+			var_dump("main thread go pop:". var_export($ch->Pop(),true));
+			if($i>=100) break;
+		}
+		echo "2.o\n";
+	});
+	
+	class AAA extends Thread{
+		public function run() {
+			//go_initialize_thread();
+			
+			go(function(){
+				$ch = new Chan("dd");
+				var_dump("in run: dd=". var_export($ch, true));
+				
+				$i = 0;
+				while(1){
+					$i++;
+					$data = $ch->Pop();
+					var_dump("in thread: from ch: ".var_export($data, true));
+					
+					if($i>=100) break;
+				}
+			});
+			
+			echo "about to run\n";
+			while(true){
+				Scheduler::RunJoinAll();
+				//sleep(1);
+				break;
+			}
+			echo "all tasks completed\n";
+		}
+	}
+	
+	$t = new AAA();
+	$t->start();
+	
+	$t1 = new AAA();
+	$t1->start();
+	
+	//$t->join();
+	
+	echo "3\n";
+	Scheduler::RunJoinAll();
+	
+	exit;
+	
+}
+	
+if(0){
+	
+	//go_debug( 0x1 << 8);
+	
+	$arr[1] = new Chan(1,"dfd",true);
+	
+	$ch1 = new Chan("dfd");
+	
+	go( function() use($ch1){
+		echo "in go 1\n";
+		$a = array("key1"=>"b", "key2"=>1, "xxx"=>100, "arr"=> [1,2,3, "4"=> "5"] );
+		$a["recurse"] = &$a;
+		
+		var_dump($a);
+		$ch1->Push($a);
+		echo "leaving go 1\n";
+	});
+	
+	echo "main pop\n";
+	var_dump ($arr[1]->Pop());
+	
+	exit;
+}
 
 //exit;
 
-if(false){
+if(0){
 	echo "num g: ". runtime::NumGoroutine() . PHP_EOL;
 
 	Runtime::Gosched();
@@ -87,19 +211,19 @@ if(false){
 
 	//\go\go_debug(1, 1);
 
-	$mutex = go_mutex_create();
+	$mutex = new Mutex();
 
 	//var_dump($mutex);
 
 	go(function($mutex){
-		go_mutex_lock($mutex);
-		go_mutex_lock($mutex);
-		go_mutex_unlock($mutex);
-		go_mutex_unlock($mutex);
+		$mutex->lock();
+		$mutex->lock();
+		$mutex->unlock();
+		$mutex->unlock();
 	}, $mutex);
 
-	go_mutex_lock($mutex);
-	go_mutex_unlock($mutex);
+	$mutex->lock();
+	$mutex->unlock();
 
 	//var_dump($mutex);
 
@@ -107,8 +231,6 @@ if(false){
 	scheduler::runjoinall();
 
 	//go_schedule_all();
-
-	go_mutex_destroy($mutex);
 
 	var_dump($mutex);
 
@@ -118,7 +240,7 @@ if(false){
 	function f(){
 		//global $chan1;
 		
-		$chan = go_chan_create(1);
+		$chan = new Chan(1);
 		
 		//$chan1 = $chan;
 		
@@ -126,7 +248,7 @@ if(false){
 		var_dump($chan);
 		//var_dump($chan1);
 		
-		go_chan_push($chan, 1111);
+		$chan->Push(1111);
 		
 		$chan = null;
 	}
@@ -136,7 +258,148 @@ if(false){
 	Scheduler::RunJoinAll();
 }
 
+$ls = 0;
+if($ls){
+	//global $aaaa;
+	/*
+	$aaaa = 1000;
+	$wg = new Waitgroup();
+	
+	function xxx(){
+		global $aaaa;
+		echo "aaaa = $aaaa\n";
+	}
+	
+	xxx();
+
+	//var_dump($wg);
+	 
+	function f($i, $wg){
+		echo "i am $i\n";
+		echo "Gs:". Runtime::NumGoroutine() .PHP_EOL;
+			//sleep(rand(1,10));
+		
+		$wg->Add(1);
+		go('g', $i, $wg);
+		
+		//var_dump($wg);
+		$wg->Done();
+	}
+
+
+	function g($i,$wg){
+		echo "i am in $i inner go: \n";
+		$wg->Done();
+	}
+
+
+	for($i=0; $i<1; $i++){
+		global $wg;
+		$wg->Add(1);
+		
+		go( 'f', $i, $wg );
+	}*/
+	/*
+	class C {
+		public $no;
+		public function __construct($no){
+			echo "C::__construct $no\n";
+			$this->no = $no;
+		}
+		
+		public function say(){
+			echo "I am C $this->no\n";
+		}
+		
+	}*/
+
+	class T extends Thread{
+		/*private $c;
+		public function __construct($c){
+			$this->c = $c;
+		}
+		
+		public function setc($c){
+			$this->c = $c;
+		}*/
+		
+		public function run() {
+			//go_initialize_thread();
+		
+				
+			//$var = $this->shift();
+			//var_dump($var);
+
+			
+		
+			//$this->c->say();
+			/*
+			$wg = new Waitgroup();
+			for($i=0; $i<1; $i++){
+				//global $wg;
+				$wg->Add(1);
+				echo "add $i\n";
+				go( function($i,$wg){
+					echo "go $i\n";
+					$wg->Done();
+				}, $i, $wg);
+			}*/
+			
+			while(true){
+				echo "about to run\n";
+				//Scheduler::RunJoinAll();
+				sleep(1);
+				echo "all tasks completed\n";
+				break;
+			}
+		}
+	}
+
+	//$v1 = new C(1); $v2 = new C(2);
+	$t1 = new T();
+	//$t2 = new T();
+	//$v1->no = 1111; $v2->no=2222;
+	
+	///$t1->setc($v1); $t2->setc($v2);
+	
+	//$t1[]= ['a'=>100, 'b'=>200 ];
+	//$t2[]= "t2";
+	//$t3 = new T();
+	//$t4 = new T();
+
+
+	$t1->start();
+	//$t2->start();
+	//$t3->start();
+	//$t4->start();
+
+	/*
+	$i = 0;
+	for(;;){
+		echo "push to t1: $i\n";
+		$t1[]= $i++;
+		sleep(1);
+	}*/
+
+	$t1->join();
+	//$t2->join();
+	//$t3->join();
+	//$t4->join();
+
+	//$wg->Wait();
+
+	echo "Main trhead: after run\n";
+
+	//Scheduler::RunJoinAll();
+
+
+	exit;
+
+}
+
 $ch = new Chan(1);
+
+var_dump($ch);
 
 //var_dump( go_chan_close($ch) );
 
@@ -150,6 +413,7 @@ $v = 100;
 
 go( function() use($ch, $v){
 	$done = new Chan(1);
+	var_dump($done);
 	$i  = 0;
 	$sel = select(
 		/*_case($ch, "<-", 2, function($value){
@@ -188,6 +452,7 @@ go( function() use($ch, $v){
 	
 	$l = $sel->Loop($done);
 	
+	echo "l is:\n";
 	var_dump($l);
 	
 	var_dump($sel);
@@ -247,6 +512,8 @@ go(function(){
 //$v = go_chan_pop();
 
 //Scheduler::RunForeverMultiThreaded(4);
+
+Scheduler::RunJoinAll();
 
 $ch = new Chan(1);
 $ch->Pop();

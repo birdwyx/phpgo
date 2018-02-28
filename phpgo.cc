@@ -28,49 +28,26 @@
 #include "ext/standard/info.h"*/
 
 #include "stdinc.h"
-#include "php_phpgo.h"
-
-#include "go.h"
-#include "mutex.h"
-#include "zend_interfaces.h"
-
 #include <signal.h>       /* for signal */  
 #include <execinfo.h>     /* for backtrace() */  
-  
-#define BACKTRACE_SIZE   16  
-  
-void dump(void)  
-{  
-    int j, nptrs;  
-    void *buffer[BACKTRACE_SIZE];  
-    char **strings;  
-      
-    nptrs = backtrace(buffer, BACKTRACE_SIZE);  
-      
-    printf("backtrace() returned %d addresses\n", nptrs);  
-  
-    strings = backtrace_symbols(buffer, nptrs);  
-    if (strings == NULL) {  
-        perror("backtrace_symbols");  
-        exit(EXIT_FAILURE);  
-    }  
-  
-    for (j = 0; j < nptrs; j++)  
-        printf("  [%02d] %s\n", j, strings[j]);  
-  
-    free(strings);  
-}  
 
+#include "php_phpgo.h"
+#include "go.h"
+#include "go_scheduler.h"
+#include "go_chan.h"
+#include "go_mutex.h"
+#include "go_runtime.h"
+#include "go_wait_group.h"
+#include "go_timer.h"
+#include "go_select.h"
+#include "zend_interfaces.h"
+#include "defer.h"
 
-
-
-/* If you declare any globals in php_phpgo.h uncomment this:
+/* If you declare any globals in php_phpgo.h uncomment this:*/
 ZEND_DECLARE_MODULE_GLOBALS(phpgo)
-*/
 
 /* True global resources - no need for thread safety here */
 //static int le_phpgo;
-static bool phpgo_initialized = false;
 
 zend_class_entry  ce_go_chan,      *ce_go_chan_ptr;
 zend_class_entry  ce_go_mutex,     *ce_go_mutex_ptr;
@@ -163,9 +140,6 @@ const zend_function_entry go_scheduler_methods[] = {
 	PHP_ME(Scheduler,      RunOnce,      NULL,                      ZEND_ACC_PUBLIC|ZEND_ACC_STATIC)
 	PHP_ME(Scheduler,      RunJoinAll,   NULL,                      ZEND_ACC_PUBLIC|ZEND_ACC_STATIC)
 	PHP_ME(Scheduler,      RunForever,   NULL,                      ZEND_ACC_PUBLIC|ZEND_ACC_STATIC)
-#ifdef ZTS
-	PHP_ME(Scheduler,      RunForeverMultiThreaded,   NULL,         ZEND_ACC_PUBLIC|ZEND_ACC_STATIC)
-#endif
 	PHP_FE_END	/* Must be the last line */
 };
 
@@ -226,13 +200,12 @@ PHP_INI_END()
 
 /* {{{ php_phpgo_init_globals
  */
-/* Uncomment this function if you have INI entries
+/* Uncomment this function if you have INI entries*/
 static void php_phpgo_init_globals(zend_phpgo_globals *phpgo_globals)
 {
-	phpgo_globals->global_value = 0;
-	phpgo_globals->global_string = NULL;
+	phpgo_globals->phpgo_initialized = false;
 }
-*/
+
 /* }}} */
 
 /* {{{ PHP_MINIT_FUNCTION
@@ -242,6 +215,8 @@ PHP_MINIT_FUNCTION(phpgo)
 	/* If you have INI entries, uncomment these lines 
 	REGISTER_INI_ENTRIES();
 	*/
+	
+	ZEND_INIT_MODULE_GLOBALS(phpgo, php_phpgo_init_globals, NULL);
 	
 	INIT_NS_CLASS_ENTRY(ce_go_chan,      PHPGO_NS, "Chan",      go_chan_methods);  // 类名为 go\Chan
 	INIT_NS_CLASS_ENTRY(ce_go_mutex,     PHPGO_NS, "Mutex",     go_mutex_methods); 
@@ -261,15 +236,6 @@ PHP_MINIT_FUNCTION(phpgo)
     
 	//zend_declare_property_long(ce_go_chan_ptr,"handle",  strlen("handle"),  -1, ZEND_ACC_PUBLIC TSRMLS_CC);
 	//zend_declare_property_long(ce_go_chan_ptr,"capacity",strlen("capacity"), 0, ZEND_ACC_PUBLIC TSRMLS_CC);
-
-	if( !phpgo_initialized ){
-		if(phpgo_initialize()){
-			phpgo_initialized = true;
-			return SUCCESS;
-		}else{
-			return FAILURE;
-		}
-	}
 	
 	return SUCCESS;
 }
@@ -291,6 +257,7 @@ PHP_MSHUTDOWN_FUNCTION(phpgo)
  */
 PHP_RINIT_FUNCTION(phpgo)
 {
+	phpgo_initialize();
 	return SUCCESS;
 }
 /* }}} */
@@ -335,18 +302,112 @@ PHP_MINFO_FUNCTION(phpgo)
 	 
 	//printf("Chan::__construct\n");
 	
-	long capacity = 0;
-	if (zend_parse_parameters(ZEND_NUM_ARGS() TSRMLS_CC, "l", &capacity) == FAILURE) {
+	long   capacity = 0;
+	char*  name     = NULL;
+	size_t name_len = 0;
+	zval*  z1       = NULL;
+	zval*  z2       = NULL;
+	zval*  z3       = NULL;
+	bool   copy     = false;
+	
+	if( zend_parse_parameters(ZEND_NUM_ARGS() TSRMLS_CC, "|z", &z1) == FAILURE ){
 		zend_error(E_ERROR, "phpgo: Chan::__construct: getting parameter failure");
 		RETURN_NULL();
 	}
+	
+	/*
+	if(z3){
+		if( !z1 || Z_TYPE_P(z1) != IS_LONG   || 
+			!z2 || Z_TYPE_P(z2) != IS_STRING ||
+			       Z_TYPE_P(z3) != IS_BOOL 
+		){
+			zend_error(E_ERROR, "phpgo: Chan($capacity, $name, $copy): the 3 parameters must be of type long, string, bool respectively");
+			RETURN_NULL();
+		}
+		copy     = Z_BVAL_P(z3);
+		capacity = Z_LVAL_P(z1);
+		name     = Z_STRVAL_P(z2);
+		name_len = Z_STRLEN_P(z2);
+	}else if(z2){
+		if( !z1 || Z_TYPE_P(z1) != IS_LONG || 
+		           Z_TYPE_P(z2) != IS_STRING
+		){
+			zend_error(E_ERROR, "phpgo: Chan($capacity, $name): the 2 parameters must be of type long, string respectively");
+			RETURN_NULL();
+		}
+		capacity = Z_LVAL_P(z1);
+		name     = Z_STRVAL_P(z2);
+		name_len = Z_STRLEN_P(z2);
+		if( name_len <= 0 ){
+			zend_error(E_ERROR, "phpgo: Chan($capacity, $name): the channel name string, when provided, cannot be empty");
+			RETURN_NULL();
+		}
+	}else if(z1){
+		if( Z_TYPE_P(z1) == IS_LONG ){
+			capacity = Z_LVAL_P(z1);
+		}else if( Z_TYPE_P(z1) == IS_STRING ){
+			name     = Z_STRVAL_P(z1);
+			name_len = Z_STRLEN_P(z1);
+			if( name_len <= 0 ){
+				zend_error(E_ERROR, "phpgo: Chan($capacity | $name): the channel name string, when provided, cannot be empty");
+				RETURN_NULL();
+			}
+		}else{
+			zend_error(E_ERROR, "phpgo: Chan($capacity | $name): the parameter must be either long or string");
+			RETURN_NULL();
+		}
+	}else{
+		// no parameter, use default
+	}*/
+	
+	if( z1 ){
+	    if( Z_TYPE_P(z1) == IS_LONG ){
+			capacity = Z_LVAL_P(z1);
+		}else if( Z_TYPE_P(z1) == IS_ARRAY && z1->value.ht){
+			zval** ppz = NULL;
+			if( zend_hash_find(HASH_OF(z1), "name", sizeof("name"), (void**)&ppz) == SUCCESS ){
+				if(Z_TYPE_P(*ppz) != IS_STRING){
+					zend_error(E_ERROR, "phpgo: Chan( $options ): option \"name\" must be string");
+					RETURN_NULL();
+				}
+				name     = Z_STRVAL_P(*ppz);
+				name_len = Z_STRLEN_P(*ppz);
+			}
+			if( zend_hash_find(HASH_OF(z1), "capacity", sizeof("capacity"), (void**)&ppz) == SUCCESS ){
+				if(Z_TYPE_P(*ppz) != IS_LONG){
+					zend_error(E_ERROR, "phpgo: Chan( $options ): option \"capacity\" must be long");
+					RETURN_NULL();
+				}
+				capacity     = Z_LVAL_P(*ppz);
+			}
+			if( zend_hash_find(HASH_OF(z1), "copy", sizeof("copy"), (void**)&ppz) == SUCCESS ){
+				if(Z_TYPE_P(*ppz) != IS_BOOL){
+					zend_error(E_ERROR, "phpgo: Chan( $options ): option \"copy\" must be bool");
+					RETURN_NULL();
+				}
+				copy     = Z_BVAL_P(*ppz);
+			}
+		}else{
+			zend_error(E_ERROR, "phpgo: Chan( long $capacity| array $options ): parameter 1 must be long or array");
+			RETURN_NULL();
+			//invalid argument
+		}
+	}else{
+		//no argument provided
+	}
+	
+	if( capacity < 0 ){
+		zend_error(E_ERROR, "phpgo: Chan(): the capacity must be greater than or equal to 0");
+		RETURN_NULL();
+	}
 
-	void* chan = phpgo_go_chan_create(capacity);
+	void* chan = GoChan::Create(capacity, name, name_len, copy);
 	
 	return_value = getThis();
-	zend_update_property_long(ce_go_chan_ptr, return_value, "handle",   sizeof("handle"),   (long)chan TSRMLS_CC);
-	zend_update_property_long(ce_go_chan_ptr, return_value, "capacity", sizeof("capacity"), capacity   TSRMLS_CC);
-	
+	zend_update_property_long  (ce_go_chan_ptr, return_value, "handle", sizeof("handle")-1,   (long)chan    TSRMLS_CC);
+	zend_update_property_string(ce_go_chan_ptr, return_value, "name",     sizeof("name")-1,     name?name:""  TSRMLS_CC);
+	zend_update_property_long  (ce_go_chan_ptr, return_value, "capacity", sizeof("capacity")-1, capacity      TSRMLS_CC);
+	zend_update_property_bool  (ce_go_chan_ptr, return_value, "copy",     sizeof("copy")-1,     copy          TSRMLS_CC);
  }
  /* }}} */
  
@@ -366,13 +427,13 @@ PHP_MINFO_FUNCTION(phpgo)
     }
 	
 	auto self = getThis();
-	chan = zend_read_property(ce_go_chan_ptr, self, "handle",   sizeof("handle"), true TSRMLS_CC);
+	chan = zend_read_property(ce_go_chan_ptr, self, "handle", sizeof("handle")-1, true TSRMLS_CC);
 
 	if(!chan)
 		RETURN_FALSE;
 	
 	auto lchan = Z_LVAL_P(chan);
-	void* ch = phpgo_go_chan_push( (void*)lchan, z );
+	void* ch = GoChan::Push( (void*)lchan, z TSRMLS_CC);
 	
 	//printf("chan::push %p\n", ch);
 	
@@ -397,13 +458,13 @@ PHP_MINFO_FUNCTION(phpgo)
     }
 	
 	auto self = getThis();
-	chan = zend_read_property(ce_go_chan_ptr, self, "handle",   sizeof("handle"), true TSRMLS_CC);
+	chan = zend_read_property(ce_go_chan_ptr, self, "handle", sizeof("handle")-1, true TSRMLS_CC);
 
 	if(!chan)
 		RETURN_FALSE;
 	
 	auto lchan = Z_LVAL_P(chan);
-	auto ok = phpgo_go_chan_try_push( (void*)lchan, z );
+	auto ok = GoChan::TryPush( (void*)lchan, z TSRMLS_CC);
 	
 	RETURN_BOOL(ok);
 	
@@ -419,13 +480,13 @@ PHP_MINFO_FUNCTION(phpgo)
 	//printf("Chan::Pop\n");
 	
 	zval* self = getThis();
-	zval* chan = zend_read_property(ce_go_chan_ptr, self, "handle",   sizeof("handle"), true TSRMLS_CC);
+	zval* chan = zend_read_property(ce_go_chan_ptr, self, "handle", sizeof("handle")-1, true TSRMLS_CC);
 
 	if(!chan)
 		RETURN_FALSE;
 	
 	auto lchan = Z_LVAL_P(chan);	
-	zval* z = phpgo_go_chan_pop( (void*)lchan );
+	zval* z = GoChan::Pop( (void*)lchan );
 	
 	if(!z)
 		RETURN_NULL();
@@ -442,13 +503,13 @@ PHP_MINFO_FUNCTION(phpgo)
 	//printf("Chan::TryPop\n");
 	
 	zval* self = getThis();
-	zval* chan = zend_read_property(ce_go_chan_ptr, self, "handle",   sizeof("handle"), true TSRMLS_CC);
+	zval* chan = zend_read_property(ce_go_chan_ptr, self, "handle", sizeof("handle")-1, true TSRMLS_CC);
 
 	if(!chan)
 		RETURN_FALSE;
 	
 	auto lchan = Z_LVAL_P(chan);	
-	zval* z = phpgo_go_chan_try_pop( (void*)lchan );
+	zval* z = GoChan::TryPop( (void*)lchan );
 	
 	// phpgo_go_chan_try_pop will
 	// return nullptr if not ready
@@ -472,13 +533,13 @@ PHP_MINFO_FUNCTION(phpgo)
 	//printf("Chan::Close\n");
 	
 	zval* self = getThis();
-	zval* chan = zend_read_property(ce_go_chan_ptr, self, "handle",   sizeof("handle"), true TSRMLS_CC);
+	zval* chan = zend_read_property(ce_go_chan_ptr, self, "handle", sizeof("handle")-1, true TSRMLS_CC);
 
 	if(!chan)
 		RETURN_FALSE;
 	
 	auto lchan = Z_LVAL_P(chan);	
-	phpgo_go_chan_close( (void*)lchan );
+	GoChan::Close( (void*)lchan );
 	
  }
  /* }}} */
@@ -492,14 +553,14 @@ PHP_MINFO_FUNCTION(phpgo)
 	//printf("Chan::__destruct\n");
 	
 	zval* self = getThis();
-	zval* chan = zend_read_property(ce_go_chan_ptr, self, "handle",   sizeof("handle"), true TSRMLS_CC);
+	zval* chan = zend_read_property(ce_go_chan_ptr, self, "handle", sizeof("handle")-1, true TSRMLS_CC);
 	
 	if(!chan)
 		RETURN_FALSE;
 	
 	auto lchan = Z_LVAL_P(chan);
 	if(lchan){
-		phpgo_go_chan_destroy((void*)lchan);
+		GoChan::Destroy((void*)lchan);
 	}
  }
  /* }}} */
@@ -515,27 +576,19 @@ PHP_MINFO_FUNCTION(phpgo)
 	}
 	
 	GO_SELECTOR* sel = (GO_SELECTOR*)selector;
-	//printf("Selector::__construct selector=%ld, %p, %ld\n", sel, sel->case_array, sel->case_count);
-	//printf("%d, %d, %d, %p, %p\n", sel->case_array[0].case_type, sel->case_array[0].chan, 
-	//	       sel->case_array[0].op, sel->case_array[0].value, sel->case_array[0].callback);
-	
-    //extern void dump_zval(zval*);	
-	//dump_zval(sel->case_array[0].callback);
-	
-	//printf("\n");
 	
 	return_value = getThis();
-	zend_update_property_long(ce_go_selector_ptr, return_value, "handle",   sizeof("handle"), selector TSRMLS_CC);
+	zend_update_property_long(ce_go_selector_ptr, return_value, "handle", sizeof("handle")-1, selector TSRMLS_CC);
  }
  /* }}} */
  
  
-    /* {{{ proto Selector::__destruct
+ /* {{{ proto Selector::__destruct
   * Create a go channel object
   */
  PHP_METHOD(Selector, Select){
 	zval* self = return_value = getThis();
-	zval* z_selector = zend_read_property(ce_go_selector_ptr, self, "handle",   sizeof("handle"), true TSRMLS_CC);
+	zval* z_selector = zend_read_property(ce_go_selector_ptr, self, "handle", sizeof("handle")-1, true TSRMLS_CC);
 	
 	if(!z_selector || Z_TYPE_P(z_selector) == IS_NULL){
 		zend_error(E_ERROR, "phpgo: Selector::Select(): error reading object handle");
@@ -564,7 +617,7 @@ PHP_MINFO_FUNCTION(phpgo)
 		RETURN_FALSE;
     }
 	
-	zval* chan = zend_read_property(ce_go_chan_ptr, z_chan, "handle",   sizeof("handle"), true TSRMLS_CC);
+	zval* chan = zend_read_property(ce_go_chan_ptr, z_chan, "handle", sizeof("handle")-1, true TSRMLS_CC);
 
 	if(!chan || Z_TYPE_P(chan) == IS_NULL ){
 		zend_error(E_ERROR, "phpgo: Selector::Loop(): null channel handle");
@@ -575,7 +628,7 @@ PHP_MINFO_FUNCTION(phpgo)
 	
 	//--
 	zval* self = getThis();
-	zval* z_selector = zend_read_property(ce_go_selector_ptr, self, "handle",   sizeof("handle"), true TSRMLS_CC);
+	zval* z_selector = zend_read_property(ce_go_selector_ptr, self, "handle", sizeof("handle")-1, true TSRMLS_CC);
 	
 	if(!z_selector || Z_TYPE_P(z_selector) == IS_NULL){
 		zend_error(E_ERROR, "phpgo: Selector::Loop(): error reading object handle");
@@ -588,13 +641,13 @@ PHP_MINFO_FUNCTION(phpgo)
 		RETURN_FALSE;
 	}
 	
-	// phpgo_go_chan_try_pop will
-	// return nullptr if not ready
+	// GoChan::TryPop will
+	// - return nullptr if not ready
 	// return ZVAL_NULL if closed
 	// otherwise return data read
 	
 	zval* z = nullptr;
-	while( !( z = phpgo_go_chan_try_pop( (void*)lchan ) ) ){
+	while( !( z = GoChan::TryPop( (void*)lchan ) ) ){
 		phpgo_select(selector->case_array, selector->case_count TSRMLS_CC);
 	}
 	
@@ -609,27 +662,20 @@ PHP_MINFO_FUNCTION(phpgo)
  PHP_METHOD(Selector,__destruct){
 	
 	zval* self = getThis();
-	zval* selector = zend_read_property(ce_go_selector_ptr, self, "handle",   sizeof("handle"), true TSRMLS_CC);
+	zval* selector = zend_read_property(ce_go_selector_ptr, self, "handle", sizeof("handle")-1, true TSRMLS_CC);
 	
 	if(!selector)
 		RETURN_FALSE;
 	
 	auto lselector = Z_LVAL_P(selector);
-	
-	//printf("Selector::__destruct selector = %ld\n", lselector);
+
 	if(lselector){
 		GO_SELECTOR* sel = (GO_SELECTOR*)lselector;
 		
 		auto case_count = sel->case_count;
 		auto case_array = sel->case_array;
-		
-		//printf("########C: %ld------A: %p-----------\n", case_count, case_array);
+
 		for(auto i = 0; i < case_count; i++){
-			
-			//printf("the %d case:\n",i);
-			//void dump_zval(zval*);
-			//dump_zval(case_array[i].value);
-			//dump_zval(case_array[i].callback);
 			if( case_array[i].chan && 
 			    Z_TYPE_P(case_array[i].chan) != IS_NULL ) {
 				zval_ptr_dtor(&case_array[i].chan);
@@ -645,7 +691,6 @@ PHP_MINFO_FUNCTION(phpgo)
 				zval_ptr_dtor(&case_array[i].callback);
 			}
 		}
-		//printf("##########\n");
 		
 		efree(sel->case_array);
 		efree(sel);
@@ -687,146 +732,18 @@ PHP_FUNCTION(go)
 	efree(args);
 	RETURN_LONG( (long)co );
 }
-/* }}} */
-
 
 /* {{{ proto void go_schedule_forever(void)
    loop running the secheduler forever*/
 PHP_FUNCTION( go_debug )
 {
-	zval* arg;
-	zval* callback;
-	if (zend_parse_parameters(ZEND_NUM_ARGS() TSRMLS_CC, "zz", &arg, &callback) == FAILURE)
+	long debug_flag;
+	if (zend_parse_parameters(ZEND_NUM_ARGS() TSRMLS_CC, "l", &debug_flag) == FAILURE)
     {
         php_printf("go: getting parameter failure");
 		return;
     }
-	
-	void dump_zval(zval* zv);
-	dump_zval(arg);
-	dump_zval(callback);
-	
-	arg->is_ref__gc = 1;
-	
-	
-	//zval* return_value;
-	
-	//ZVAL_LONG(debug_flag, 1111);
-	
-	zval** params[] = { &arg };
-	if( call_user_function_ex(
-		EG(function_table), 
-		NULL, 
-		callback,                   // the callback callable
-		&return_value,              // zval** to receive return value
-		1,                   // the parameter number required by the callback
-		params,                // the parameter list of the callback
-		1, 
-		NULL TSRMLS_CC
-	) != SUCCESS) {
-		zend_error(E_ERROR, "phpgo: execution of go routine faild");
-		return;
-	}
-		
-	return;
-/*	
-	char *mystr;
-    zval *mysubarray;
-    array_init(return_value);
-
-    add_index_long(return_value, 42, 123);
-    add_next_index_string(return_value, "I should now be found at index 43", 1);
-    add_next_index_stringl(return_value, "I'm at 44!", 10, 1);
-
-    mystr = estrdup("Forty Five");
-    add_next_index_string(return_value, mystr, 0);
-
-    add_assoc_double(return_value, "pi", 3.1415926535);
-
-    ALLOC_INIT_ZVAL(mysubarray);
-    array_init(mysubarray);
-    add_next_index_string(mysubarray, "hello", 1);
-    add_assoc_zval(return_value, "subarray", mysubarray);
-	
-	
-	zval *arr, **data;
-    HashTable *arr_hash;
-    HashPosition pointer;
-    int array_count;
-	
-	arr_hash = Z_ARRVAL_P(array);
-    array_count = zend_hash_num_elements(arr_hash);
-    php_printf("The array passed contains %d elements ", array_count);
-
-    for(zend_hash_internal_pointer_reset_ex(arr_hash, &pointer); 
-		zend_hash_get_current_data_ex(arr_hash, (void**) &data, &pointer) == SUCCESS; 
-		zend_hash_move_forward_ex(arr_hash, &pointer)
-	) {
-        if (Z_TYPE_PP(data) == IS_STRING) {
-
-            PHPWRITE(Z_STRVAL_PP(data), Z_STRLEN_PP(data));
-
-            php_printf(" ");
-
-        }
-    }
-	
-	php_printf("\n");
-	
-	
-	int i = 0;
-	for(zend_hash_internal_pointer_reset_ex(arr_hash, &pointer); 
-		zend_hash_get_current_data_ex(arr_hash, (void**) &data, &pointer) == SUCCESS; 
-		zend_hash_move_forward_ex(arr_hash, &pointer)) {
-        zval temp;
-        temp = **data;
-        zval_copy_ctor(&temp);
-        //convert_to_string(&temp);
-        //PHPWRITE(Z_STRVAL(temp), Z_STRLEN(temp));
-		
-		zval *element;
-		ALLOC_INIT_ZVAL(element);
-		*element = **data;
-		zval_copy_ctor(element);
-		zval_add_ref(&element);
-		add_index_zval(return_value, i++, element);
-		//add_assoc_zval(return_value, "abc", element);
-		
-		
-        php_printf(" ");
-        zval_dtor(&temp);
-	}
-	php_printf("\n");
-	
-	
-	for(zend_hash_internal_pointer_reset_ex(arr_hash, &pointer); 
-		zend_hash_get_current_data_ex(arr_hash, (void**) &data, &pointer) == SUCCESS; 
-		zend_hash_move_forward_ex(arr_hash, &pointer)) {
-
-		zval temp;
-		char *key;
-		unsigned int key_len;
-		unsigned long index;
-
-		if (zend_hash_get_current_key_ex(arr_hash, &key, &key_len, &index, 0, &pointer) == HASH_KEY_IS_STRING) {
-			PHPWRITE(key, key_len);
-		} else {
-			php_printf("%ld", index);
-		}
-
-		php_printf(" => ");
-
-		temp = **data;
-		zval_copy_ctor(&temp);
-		convert_to_string(&temp);
-		PHPWRITE(Z_STRVAL(temp), Z_STRLEN(temp));
-		php_printf(" ");
-		zval_dtor(&temp);
-	}*/
-	
-	php_printf("\n");
-	
-	//phpgo_go_debug(debug_flag);
+	phpgo_go_debug(debug_flag);
 }
 /* }}} */
 
@@ -856,14 +773,16 @@ PHP_FUNCTION(_case)
 	int   op_len; 
 	char* func_name = NULL; 
 	long  op_i = 0;
+	
+	defer{
+		GO_CASE_FREE_RESOURCE();
+	};
 
 	if (zend_parse_parameters(ZEND_NUM_ARGS() TSRMLS_CC, "zszz", &chan, &op, &op_len, &value, &callback ) == FAILURE)
     {
         zend_error(E_ERROR, "phpgo: getting parameter failure");
-		goto error_return;
+		return;
     }
-	
-	//printf( "chan: %ld op: %s callback: %p\n" , chan, op, callback);
 	
 	if( strcmp(op, "->") ==0 ){
 		op_i = GO_CASE_OP_READ;
@@ -872,48 +791,23 @@ PHP_FUNCTION(_case)
 	}
 	else{
 		zend_error(E_ERROR, "phpgo: invalid channel operation %s", op);
-		goto error_return;
+		return;
 	}
 	
     if (!zend_is_callable(callback, 0, &func_name TSRMLS_CC)){
         zend_error(E_ERROR, "phpgo: function '%s' is not callable", func_name);
-        goto error_return;
+        return;
     }
-	
-	//long lchan;
-	//ZEND_FETCH_RESOURCE(lchan, long, &chan, -1, le_go_channel_name, le_go_channel);
 	
 	array_init(return_value);
 	add_index_long(return_value, 0, GO_CASE_TYPE_CASE);
-	
 	zval_add_ref(&chan);
 	add_next_index_zval(return_value, chan);
-    
 	add_next_index_long(return_value, op_i);
-	
 	zval_add_ref(&value);
 	add_next_index_zval(return_value, value);
-	
-	//extern void dump_zval(zval*);
-	//printf("-------_case: callback=\n");
-	//dump_zval(callback);
-	
 	zval_add_ref(&callback);
-	//printf("------go_case2: callback=\n");
-	//dump_zval(callback);
 	add_next_index_zval(return_value, callback);
-	
-	//printf("casetype CASE, ch %ld, op %s, value %p, callback %p\n", chan, op, value, callback  );
-	
-	GO_CASE_FREE_RESOURCE();
-	return;
-	
-error_return:
-	
-	GO_CASE_FREE_RESOURCE();
-	RETURN_FALSE;
-	//void dump_zval(zval* zv);
-	//dump_zval(callback);
 }
 /* }}} */
 
@@ -1134,9 +1028,9 @@ PHP_METHOD(Mutex,__construct){
 		}
 	}
 	
-	void* mutex = phpgo_go_mutex_create(signaled);
+	void* mutex = GoMutex::Create(signaled);
 	return_value = getThis();
-	zend_update_property_long(ce_go_mutex_ptr, return_value, "handle",   sizeof("handle"),   (long)mutex TSRMLS_CC);	
+	zend_update_property_long(ce_go_mutex_ptr, return_value, "handle", sizeof("handle")-1,   (long)mutex TSRMLS_CC);	
  }
  /* }}} */
  
@@ -1154,13 +1048,13 @@ PHP_METHOD(Mutex,__construct){
 	zval* z         = NULL;
 	
 	auto self = getThis();
-	mutex = zend_read_property(ce_go_mutex_ptr, self, "handle", sizeof("handle"), true TSRMLS_CC);
+	mutex = zend_read_property(ce_go_mutex_ptr, self, "handle", sizeof("handle")-1, true TSRMLS_CC);
 
 	if(!mutex)
 		RETURN_FALSE;
 	
 	auto lmutex = Z_LVAL_P(mutex);
-	phpgo_go_mutex_lock((void*)lmutex);
+	GoMutex::Lock((void*)lmutex);
 	
 	RETURN_TRUE;
  }
@@ -1177,13 +1071,13 @@ PHP_METHOD(Mutex,__construct){
 	zval* z        = NULL;
 	
 	auto self = getThis();
-	mutex = zend_read_property(ce_go_mutex_ptr, self, "handle",   sizeof("handle"), true TSRMLS_CC);
+	mutex = zend_read_property(ce_go_mutex_ptr, self, "handle", sizeof("handle")-1, true TSRMLS_CC);
 
 	if(!mutex)
 		RETURN_FALSE;
 	
 	auto lmutex = Z_LVAL_P(mutex);
-	phpgo_go_mutex_unlock((void*)lmutex);
+	GoMutex::Unlock((void*)lmutex);
 	
 	RETURN_TRUE;
  }
@@ -1197,7 +1091,7 @@ PHP_METHOD(Mutex,__construct){
 	zval* z         = NULL;
 	
 	auto self = getThis();
-	mutex = zend_read_property(ce_go_mutex_ptr, self, "handle",   sizeof("handle"), true TSRMLS_CC);
+	mutex = zend_read_property(ce_go_mutex_ptr, self, "handle", sizeof("handle")-1, true TSRMLS_CC);
 
 	if(!mutex)
 		RETURN_FALSE;
@@ -1205,7 +1099,7 @@ PHP_METHOD(Mutex,__construct){
 	auto lmutex = Z_LVAL_P(mutex);
 	
 	//printf("Mutex::TryLock %p\n", lmutex);
-	RETURN_BOOL( phpgo_go_mutex_try_lock((void*)lmutex) );
+	RETURN_BOOL( GoMutex::TryLock((void*)lmutex) );
  }
  /* }}} */
  
@@ -1220,13 +1114,13 @@ PHP_METHOD(Mutex,__construct){
 	zval* z         = NULL;
 	
 	auto self = getThis();
-	mutex = zend_read_property(ce_go_mutex_ptr, self, "handle",   sizeof("handle"), true TSRMLS_CC);
+	mutex = zend_read_property(ce_go_mutex_ptr, self, "handle", sizeof("handle")-1, true TSRMLS_CC);
 
 	if(!mutex)
 		RETURN_FALSE;
 	
 	auto lmutex = Z_LVAL_P(mutex);
-	RETURN_BOOL( phpgo_go_mutex_is_lock((void*)lmutex) );
+	RETURN_BOOL( GoMutex::IsLock((void*)lmutex) );
  }
  /* }}} */
  
@@ -1239,13 +1133,13 @@ PHP_METHOD(Mutex,__construct){
 	//printf("Mutex::__destruct\n");
 	
 	zval* self = getThis();
-	zval* mutex = zend_read_property(ce_go_mutex_ptr, self, "handle", sizeof("handle"), true TSRMLS_CC);
+	zval* mutex = zend_read_property(ce_go_mutex_ptr, self, "handle", sizeof("handle")-1, true TSRMLS_CC);
 	
 	if(!mutex)
 		RETURN_FALSE;
 	
 	auto lmutex = Z_LVAL_P(mutex);
-	phpgo_go_mutex_destroy( (void*)lmutex );
+	GoMutex::Destroy( (void*)lmutex );
  }
  /* }}} */
 
@@ -1255,9 +1149,9 @@ PHP_METHOD(Mutex,__construct){
   */
 PHP_METHOD(WaitGroup,__construct){
 	//printf("WaitGroup::__construct\n");
-	void* wg = phpgo_go_wait_group_create();
+	void* wg = GoWaitGroup::Create();
 	return_value = getThis();
-	zend_update_property_long(ce_go_wait_group_ptr, return_value, "handle",   sizeof("handle"),   (long)wg TSRMLS_CC);	
+	zend_update_property_long(ce_go_wait_group_ptr, return_value, "handle", sizeof("handle")-1,   (long)wg TSRMLS_CC);	
  }
  /* }}} */
  
@@ -1276,13 +1170,13 @@ PHP_METHOD(WaitGroup,__construct){
     }
 	
 	auto self = getThis();
-	wg = zend_read_property(ce_go_wait_group_ptr, self, "handle",   sizeof("handle"), true TSRMLS_CC);
+	wg = zend_read_property(ce_go_wait_group_ptr, self, "handle", sizeof("handle")-1, true TSRMLS_CC);
 
 	if(!wg)
 		RETURN_FALSE;
 	
 	auto l_wg = Z_LVAL_P(wg);
-	int64_t count = phpgo_go_wait_group_add( (void*)l_wg, delta );
+	int64_t count = GoWaitGroup::Add( (void*)l_wg, delta );
 	
 	RETURN_LONG(count);
  }
@@ -1297,13 +1191,13 @@ PHP_METHOD(WaitGroup,__construct){
 	zval* wg       = NULL;
 
 	auto self = getThis();
-	wg = zend_read_property(ce_go_wait_group_ptr, self, "handle",   sizeof("handle"), true TSRMLS_CC);
+	wg = zend_read_property(ce_go_wait_group_ptr, self, "handle", sizeof("handle")-1, true TSRMLS_CC);
 
 	if(!wg)
 		RETURN_FALSE;
 	
 	auto l_wg = Z_LVAL_P(wg);
-	int64_t count = phpgo_go_wait_group_done( (void*)l_wg );
+	int64_t count = GoWaitGroup::Done( (void*)l_wg );
 	
 	RETURN_LONG(count);
  }
@@ -1318,13 +1212,13 @@ PHP_METHOD(WaitGroup,__construct){
 	zval* wg       = NULL;
 
 	auto self = getThis();
-	wg = zend_read_property(ce_go_wait_group_ptr, self, "handle",   sizeof("handle"), true TSRMLS_CC);
+	wg = zend_read_property(ce_go_wait_group_ptr, self, "handle", sizeof("handle")-1, true TSRMLS_CC);
 
 	if(!wg)
 		RETURN_FALSE;
 	
 	auto l_wg = Z_LVAL_P(wg);
-	int64_t count = phpgo_go_wait_group_count( (void*)l_wg );
+	int64_t count = GoWaitGroup::Count( (void*)l_wg );
 	
 	RETURN_LONG(count);
  }
@@ -1339,13 +1233,13 @@ PHP_METHOD(WaitGroup,__construct){
 	zval* wg       = NULL;
 
 	auto self = getThis();
-	wg = zend_read_property(ce_go_wait_group_ptr, self, "handle",   sizeof("handle"), true TSRMLS_CC);
+	wg = zend_read_property(ce_go_wait_group_ptr, self, "handle", sizeof("handle")-1, true TSRMLS_CC);
 
 	if(!wg)
 		RETURN_FALSE;
 	
 	auto l_wg = Z_LVAL_P(wg);
-	phpgo_go_wait_group_wait( (void*)l_wg );
+	GoWaitGroup::Wait( (void*)l_wg );
 	
 	RETURN_TRUE;
  }
@@ -1359,13 +1253,13 @@ PHP_METHOD(WaitGroup,__construct){
 	//printf("WaitGroup::__destruct\n");
 	
 	zval* self = getThis();
-	zval* wg = zend_read_property(ce_go_wait_group_ptr, self, "handle", sizeof("handle"), true TSRMLS_CC);
+	zval* wg = zend_read_property(ce_go_wait_group_ptr, self, "handle", sizeof("handle")-1, true TSRMLS_CC);
 	
 	if(!wg)
 		RETURN_FALSE;
 	
 	auto l_wg = Z_LVAL_P(wg);
-	phpgo_go_wait_group_destruct( (void*)l_wg );
+	GoWaitGroup::Destruct( (void*)l_wg );
  }
  /* }}} */
  
@@ -1373,7 +1267,7 @@ PHP_METHOD(WaitGroup,__construct){
    run the secheduler for a one pass*/
 PHP_METHOD(Scheduler, RunOnce)
 {
-	phpgo_go_scheduler_run_once();
+	GoScheduler::RunOnce();
 	RETURN_TRUE;
 }
 /* }}} */
@@ -1382,7 +1276,7 @@ PHP_METHOD(Scheduler, RunOnce)
    run the secheduler until all go routines completed*/
 PHP_METHOD(Scheduler, RunJoinAll)
 {
-	phpgo_go_scheduler_run_join_all();
+	GoScheduler::RunJoinAll();
 	RETURN_TRUE;
 }
 /* }}} */
@@ -1391,32 +1285,10 @@ PHP_METHOD(Scheduler, RunJoinAll)
    loop running the secheduler forever*/
 PHP_METHOD(Scheduler, RunForever)
 {
-	phpgo_go_scheduler_run_forever();
+	GoScheduler::RunForever();
 	RETURN_TRUE;
 }
 /* }}} */
-
-#ifdef ZTS
-/* {{{ proto void go_schedule_forever(void)
-   loop running the secheduler forever*/
-PHP_METHOD(Scheduler, RunForeverMultiThreaded)
-{
-	uint64_t threads  = 0;
-	if( zend_parse_parameters(ZEND_NUM_ARGS() TSRMLS_CC, "l", (long*)&threads) == FAILURE ){
-        zend_error(E_ERROR, "phpgo: Scheduler::RunForeverMultiThreaded: getting parameter failure");
-		RETURN_FALSE;
-    }
-	
-	if(threads < 1){
-		zend_error(E_ERROR, "phpgo: Scheduler::RunForeverMultiThreaded: threads cannot be 0");
-		RETURN_FALSE;
-	}
-	
-	phpgo_go_scheduler_run_forever_multi_threaded(threads);
-	RETURN_TRUE; 
-}
-/* }}} */
-#endif
 
 
 /* {{{ proto void go_schedule_forever(void)
@@ -1459,7 +1331,7 @@ PHP_METHOD(Timer, Tick)
 	zend_call_method_with_1_params(&z_chan, ce_go_chan_ptr, &ce_go_chan_ptr->constructor, "__construct", NULL, arg1);
 	zval_ptr_dtor(&arg1);
 	
-	auto z_handler = zend_read_property(ce_go_chan_ptr, z_chan, "handle",   sizeof("handle"), true TSRMLS_CC);
+	auto z_handler = zend_read_property(ce_go_chan_ptr, z_chan, "handle", sizeof("handle")-1, true TSRMLS_CC);
 	
 	if(!z_handler)
 		RETURN_NULL();
@@ -1468,7 +1340,7 @@ PHP_METHOD(Timer, Tick)
 	if(!chan)
 		RETURN_NULL();
 	
-	phpgo_go_timer_tick(z_chan, chan, micro_seconds);
+	GoTimer::Tick(z_chan, chan, micro_seconds TSRMLS_CC);
 	
 	RETURN_ZVAL(z_chan, 1, 1);
 }
@@ -1499,7 +1371,7 @@ PHP_METHOD(Timer, After)
 	zend_call_method_with_1_params(&z_chan, ce_go_chan_ptr, &ce_go_chan_ptr->constructor, "__construct", NULL, arg1);
 	zval_ptr_dtor(&arg1);
 	
-	auto z_handler = zend_read_property(ce_go_chan_ptr, z_chan, "handle",   sizeof("handle"), true TSRMLS_CC);
+	auto z_handler = zend_read_property(ce_go_chan_ptr, z_chan, "handle", sizeof("handle")-1, true TSRMLS_CC);
 	
 	if(!z_handler)
 		RETURN_NULL();
@@ -1508,7 +1380,7 @@ PHP_METHOD(Timer, After)
 	if(!chan)
 		RETURN_NULL();
 	
-	phpgo_go_timer_after(z_chan, chan, micro_seconds);
+	GoTimer::After(z_chan, chan, micro_seconds TSRMLS_CC);
 	
 	RETURN_ZVAL(z_chan, 1, 1);
 }

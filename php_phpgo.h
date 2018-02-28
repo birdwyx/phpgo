@@ -58,9 +58,6 @@ PHP_FUNCTION(_default);
 PHP_METHOD(Scheduler, RunOnce);
 PHP_METHOD(Scheduler, RunJoinAll);
 PHP_METHOD(Scheduler, RunForever);
-#ifdef ZTS
-PHP_METHOD(Scheduler, RunForeverMultiThreaded);
-#endif
 
 PHP_METHOD(Runtime,   NumGoroutine);
 PHP_METHOD(Runtime,   Gosched);
@@ -93,15 +90,16 @@ PHP_METHOD(Selector,  __destruct);
 
 PHP_METHOD(Timer,     Tick);
 PHP_METHOD(Timer,     After);
+
 /* 
   	Declare any global variables you may need between the BEGIN
 	and END macros here:     
+*/
 
 ZEND_BEGIN_MODULE_GLOBALS(phpgo)
-	long  global_value;
-	char *global_string;
+	bool phpgo_initialized = false;
 ZEND_END_MODULE_GLOBALS(phpgo)
-*/
+
 
 /* In every utility function you add that needs to use variables 
    in php_phpgo_globals, call TSRMLS_FETCH(); after declaring other 

@@ -1,60 +1,57 @@
-#ifndef ISU_DEFER_HPP
-#define ISU_DEFER_HPP
+/*
+ *  Copied from https://github.com/sismvg/___defer/tree/master/just_playing
+ */
+#ifndef __DEFER_H__
+#define __DEFER_H__
 
 #include <functional>
 
-namespace isu
+/*
+* internal defer implementation, not expected to be used directly
+*/
+namespace _defer
 {
-	class mynop
-	{
-	public: template<class... Arg> mynop(Arg... arg){}
-	};
-
-	class mydefer
+	class __defer
 	{
 
 	public:
-		mydefer()
-		{}
-		~mydefer()
-		{_fn();}
-		mydefer(const mydefer&) = delete;
-		mydefer* operator &() = delete;
-		const mydefer* operator &() const = delete;
-		mydefer& operator=(const mydefer&) = delete;
+		__defer(){}
+		~__defer(){ _fn(); }
+		
+		__defer(const __defer&)                  = delete;
+		__defer*       operator &()              = delete;
+		const __defer* operator &() const        = delete;
+		__defer&       operator=(const __defer&) = delete;
+		
 		template<class Func>
-		void operator -(Func fn)
-		{
+		inline void operator << (Func fn){
 			_fn = fn;
 		}
+		
 		template<class Func,class... Arg>
-		void operator()(Func fn, Arg... arg)
-		{
+		inline void operator()(Func fn, Arg... arg){
 			_fn=std::bind(fn, arg...);
 		}
+		
 	private:
 		std::function<void(void)> _fn;
 		static void* operator new(std::size_t);
 		static void operator delete(void*);
 	};
-
-#define MAKE_NAME_IMPL(name,line) __JOJO## line
-#define MAKE_NAME(name,line) MAKE_NAME_IMPL(name,line)
-
-#define RANDOM_OBJECT(name,line) name MAKE_NAME(name,line) 
-
-#ifndef DISABLE_MYDEFER
-#define defer \
-	RANDOM_OBJECT(isu::mydefer, __LINE__); \
-	MAKE_NAME(isu::mydefer, __LINE__) - [&](void)
-#define defer_fn \
-	RANDOM_OBJECT(isu::mydefer, __LINE__);\
-	MAKE_NAME(isu::mydefer, __LINE__)
-#else
-#define defer [=](void)
-#define defer_fn mynop
-#endif
-
 }
+
+#define _DEFER_MAKE_NAME_IMPL(line) __defer_##line
+#define _DEFER_MAKE_NAME(line) _DEFER_MAKE_NAME_IMPL(line)
+#define _DEFER_RANDOM_OBJECT(class, line) class _DEFER_MAKE_NAME(line)
+
+/*
+* application should use defer / defer_call instead of using __defer directly
+*/
+#define defer \
+	_DEFER_RANDOM_OBJECT(::_defer::__defer, __LINE__); \
+	_DEFER_MAKE_NAME(__LINE__) << [&](void)
+#define defer_call \
+	_DEFER_RANDOM_OBJECT(::_defer::__defer, __LINE__);\
+	_DEFER_MAKE_NAME(__LINE__)
 
 #endif
