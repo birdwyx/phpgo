@@ -1,0 +1,11 @@
+SUB-TC: #1
+push
+pushed abc
+pop
+popped:string(3) "abc"
+pushed 100
+popped:int(100)
+pushed true
+popped:bool(true)
+pushed false
+popped:bool(false)
