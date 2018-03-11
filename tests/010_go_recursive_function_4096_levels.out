@@ -1,1 +1,0 @@
-Fatal error: Allowed memory size of 134217728 bytes exhausted (tried to allocate 64 bytes) in /root/michael/phpgo/tests/010_go_recursive_function_4096_levels.php on line 27
