@@ -7,7 +7,8 @@
 zval*  phpgo_select(GO_SELECT_CASE* case_array, long case_count TSRMLS_DC){
 	if(!case_count) return nullptr;
 	
-	srand(time(NULL));
+	//calling srand everytime will cuase the result less randomized,remove
+	//srand(time(NULL)); 
 	auto r = rand();
 	auto start = r % case_count;
 	
@@ -26,7 +27,7 @@ zval*  phpgo_select(GO_SELECT_CASE* case_array, long case_count TSRMLS_DC){
 			z_chan = case_array[i].chan;
 			chinfo = GoChan::ZvalToChannelInfo(z_chan TSRMLS_CC);
 			if( !chinfo ){
-				zend_error(E_ERROR, "phpgo: phpgo_select: case %d: null channel", i);
+				zend_error(E_ERROR, "phpgo: phpgo_select: null channel");
 				return nullptr;
 			}
 			if(case_array[i].op == GO_CASE_OP_READ){
@@ -36,8 +37,10 @@ zval*  phpgo_select(GO_SELECT_CASE* case_array, long case_count TSRMLS_DC){
 				// otherwise return the read zval
 				zval* data = GoChan::TryPop(chinfo);
 				if(data) {
-					zval_dtor(case_array[i].value);
-					INIT_PZVAL_COPY(case_array[i].value, data);
+					//zval_dtor(case_array[i].value);
+					//INIT_PZVAL_COPY(case_array[i].value, data);
+					//ZVAL_COPY_VALUE(case_array[i].value, data); 
+					REPLACE_ZVAL_VALUE(&case_array[i].value, data, 0);
 					zval_ptr_dtor(&data);					
 					selected_case = &case_array[i];
 					goto exit_while;

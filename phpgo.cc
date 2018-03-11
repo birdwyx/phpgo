@@ -57,23 +57,6 @@ zend_class_entry  ce_go_selector,  *ce_go_selector_ptr;
 zend_class_entry  ce_go_timer,     *ce_go_timer_ptr;
 zend_class_entry  ce_go_runtime,   *ce_go_runtime_ptr;
 
-/* {{{ phpgo_functions[]
- *
- * Every user visible function must have an entry in phpgo_functions[].
- */
-const zend_function_entry phpgo_functions[] = {
-	//PHP_FE(confirm_phpgo_compiled,	NULL)		/* For testing, remove later. */
-	PHP_FE(go, NULL)
-	PHP_FE(go_debug, NULL)
-	//ZEND_NS_NAMED_FE(PHPGO_NS, go_debug, ZEND_FN(go_go_debug), NULL)
-	
-	PHP_FE(select, NULL)
-	PHP_FE(_case, NULL)
-	PHP_FE(_default, NULL)
-	PHP_FE_END	/* Must be the last line in phpgo_functions[] */
-};
-/* }}} */
-
 /* {{{ arginfo_go_chan_push[]
  *
  */
@@ -101,7 +84,33 @@ ZEND_END_ARG_INFO()
 ZEND_BEGIN_ARG_INFO_EX(arginfo_go_selector_loop, 0, 0, 1)
 	ZEND_ARG_INFO(0, done_chan)
 ZEND_END_ARG_INFO()
+
+ZEND_BEGIN_ARG_INFO_EX(arginfo_go__case, 0, 0, 4)
+	ZEND_ARG_INFO(0, chan)
+	ZEND_ARG_INFO(0, rw)
+	ZEND_ARG_INFO(1, var)
+	ZEND_ARG_INFO(0, callback)
+ZEND_END_ARG_INFO()
 /* }}} */
+
+/* {{{ phpgo_functions[]
+ *
+ * Every user visible function must have an entry in phpgo_functions[].
+ */
+const zend_function_entry phpgo_functions[] = {
+	//PHP_FE(confirm_phpgo_compiled,	NULL)		/* For testing, remove later. */
+	PHP_FE(go, NULL)
+	PHP_FE(go_debug, NULL)
+	//ZEND_NS_NAMED_FE(PHPGO_NS, go_debug, ZEND_FN(go_go_debug), NULL)
+	
+	PHP_FE(select, NULL)
+	PHP_FE(_case, arginfo_go__case)
+	PHP_FE(_default, NULL)
+	PHP_FE_END	/* Must be the last line in phpgo_functions[] */
+};
+/* }}} */
+
+
 
 /* {{{ phpgo_channel_functions[]
  *
@@ -587,7 +596,7 @@ PHP_MINFO_FUNCTION(phpgo)
   * Create a go channel object
   */
  PHP_METHOD(Selector, Select){
-	zval* self = return_value = getThis();
+	zval* self = getThis();
 	zval* z_selector = zend_read_property(ce_go_selector_ptr, self, "handle", sizeof("handle")-1, true TSRMLS_CC);
 	
 	if(!z_selector || Z_TYPE_P(z_selector) == IS_NULL){
@@ -602,6 +611,8 @@ PHP_MINFO_FUNCTION(phpgo)
 	}
 	
 	phpgo_select(selector->case_array, selector->case_count TSRMLS_CC);
+	
+	RETURN_ZVAL(self, 1, 0);
  }
  /* }}} */
  
@@ -801,13 +812,29 @@ PHP_FUNCTION(_case)
 	
 	array_init(return_value);
 	add_index_long(return_value, 0, GO_CASE_TYPE_CASE);
-	zval_add_ref(&chan);
-	add_next_index_zval(return_value, chan);
+	
+	zval* ch;
+	ALLOC_INIT_ZVAL(ch);
+	MAKE_COPY_ZVAL(&chan,ch);
+	//zval_add_ref(&chan);
+	add_next_index_zval(return_value, ch);
+	
 	add_next_index_long(return_value, op_i);
-	zval_add_ref(&value);
-	add_next_index_zval(return_value, value);
-	zval_add_ref(&callback);
-	add_next_index_zval(return_value, callback);
+	
+	if(op_i == GO_CASE_OP_READ){
+		zval_add_ref(&value);
+		add_next_index_zval(return_value, value);
+	}else{
+		zval* v;
+		ALLOC_INIT_ZVAL(v);
+		MAKE_COPY_ZVAL(&value,v);
+		add_next_index_zval(return_value, v);
+	}
+	
+	zval* cb;
+	ALLOC_INIT_ZVAL(cb);
+	MAKE_COPY_ZVAL(&callback,cb);
+	add_next_index_zval(return_value, cb);
 }
 /* }}} */
 
@@ -843,8 +870,10 @@ PHP_FUNCTION(_default)
 	ALLOC_INIT_ZVAL(zval_null);
 	add_next_index_zval(return_value, zval_null);
 	
-	zval_add_ref(&callback);
-	add_next_index_zval(return_value, callback);
+	zval* cb;
+	ALLOC_INIT_ZVAL(cb);
+	MAKE_COPY_ZVAL(&callback,cb);
+	add_next_index_zval(return_value, cb);
 	
 	GO_CASE_FREE_RESOURCE();
 	return;

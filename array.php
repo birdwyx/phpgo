@@ -426,13 +426,13 @@ go( function() use($ch, $v){
 			
 			echo "receive v: $value\n";
 		}),
-		_case(Timer::After(1000*1000), "->", null, function() use($done){
+		_case(Timer::After(1000*1000), "->", $dummy, function() use($done){
 			
 			$done->Push( array("a"=>"b", "c"=>"d"));
 			echo "timer elapsed---------------\n";
 			
 		}),
-		_case($done, "->", null, function($value){
+		_case($done, "->", $dummy, function($value){
 			
 			
 			echo "i am told to finish\n";
