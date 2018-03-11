@@ -1,5 +1,5 @@
 --TEST--
-Go Mutex create
+Go Mutex basic test
 
 --FILE--
 <?php

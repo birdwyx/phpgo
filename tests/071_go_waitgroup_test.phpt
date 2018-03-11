@@ -1,5 +1,5 @@
 --TEST--
-Go Waitgroup create
+Go Waitgroup test
 
 --FILE--
 <?php
