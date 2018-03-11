@@ -60,7 +60,7 @@ go(function() use($done){
 	);
 	 
 	while($i<10){
-		$sel->select();
+		$sel = $sel->select();
 	}
 	
 	echo "test completed\n";
