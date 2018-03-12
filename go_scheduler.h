@@ -7,20 +7,20 @@
 
 class GoScheduler{
 public:
-	static void RunOnce(){
+	static uint32_t RunOnce(){
 		if (co_sched.IsCoroutine()) {
 			zend_error(E_ERROR, "phpgo: error: go_schedule_once must be called outside a go routine\n");
-			return;
+			return 0;
 		}
-		co_sched.Run();
+		return co_sched.Run();
 	}
 	
-	static void RunJoinAll(){
+	static void RunJoinAll(uint32_t tasks_left){
 		if (co_sched.IsCoroutine()) {
 			zend_error(E_ERROR, "phpgo: error: go_schedule_all must be called outside a go routine\n");
 			return;
 		}	
-		co_sched.RunUntilNoTask();
+		co_sched.RunUntilNoTask(tasks_left);
 	}
 	
 	static void RunForever(){

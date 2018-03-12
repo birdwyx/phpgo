@@ -1296,8 +1296,9 @@ PHP_METHOD(WaitGroup,__construct){
    run the secheduler for a one pass*/
 PHP_METHOD(Scheduler, RunOnce)
 {
-	GoScheduler::RunOnce();
-	RETURN_TRUE;
+	auto run_task_count = GoScheduler::RunOnce();
+	
+	RETURN_LONG(run_task_count);
 }
 /* }}} */
 
@@ -1305,7 +1306,15 @@ PHP_METHOD(Scheduler, RunOnce)
    run the secheduler until all go routines completed*/
 PHP_METHOD(Scheduler, RunJoinAll)
 {
-	GoScheduler::RunJoinAll();
+	uint64_t tasks_left = 0; 
+	if( ZEND_NUM_ARGS() ){
+		if (zend_parse_parameters(ZEND_NUM_ARGS() TSRMLS_CC, "l", &tasks_left) == FAILURE) {
+			zend_error(E_ERROR, "phpgo: Scheduler::RunJoinAll: getting parameter failure");
+			return;
+		}
+	}
+	
+	GoScheduler::RunJoinAll( (uint32_t)tasks_left );
 	RETURN_TRUE;
 }
 /* }}} */

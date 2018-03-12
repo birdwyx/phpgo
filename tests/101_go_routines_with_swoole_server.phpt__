@@ -1,0 +1,78 @@
+--TEST--
+Go routines with swoole server
+
+--SKIPIF--
+
+
+--FILE--
+<?php
+use \go\Mutex;
+use \go\Scheduler;
+use \Swoole\Event;
+
+function subtc($seq){
+    echo "SUB-TC: #$seq\n";
+}
+
+$http = new swoole_http_server("127.0.0.1", 9501);
+
+$http->set(array(
+    'worker_num' => 8,
+    'max_request' => 10000,
+    'max_conn' => 65535,
+    'dispatch_mode' => 2,
+    'debug_mode'=> 0,
+    'daemonize' => false,
+));
+
+$http->on('request', function ($request, $response) {
+	go(function() use($request, $response){
+		$response->end("<h1>Hello Swoole. #".rand(1000, 9999)."</h1>\n");
+	});
+	
+	//Scheduler::RunOnce();
+});
+
+$http->on('WorkerStart', function($serv, $worker_id) {
+
+	if ($worker_id < $serv->setting['worker_num']) {
+		//worker 
+		
+		// set a 10ms timer who does nothing,
+		// just to ensure the Swoole\Event::cycle be invoked at least every 10ms 
+		
+		swoole_timer_tick(
+			10, 
+			function($timer_id, $param){
+				//Scheduler::RunOnce();
+			},
+			"param"
+		);
+		
+		Event::cycle( function () {
+			$pass = 0;
+			while( ($run = Scheduler::RunOnce()) && $pass++ < 200 );
+		});
+		
+	} else {
+	    //task worker
+	}
+});
+
+/*
+swoole_timer_tick(
+    10, 
+    function($timer_id, $param){
+	    Scheduler::RunOnce();
+    },
+    "param"
+);*/
+
+$http->start();
+
+
+?>
+--EXPECT--
+SUB-TC: #1
+
+

@@ -35,7 +35,7 @@ go(function() use($ch){
 				sleep(1);
 			})*/
 		);
-		if( abs($write-$read) > 50 ) {
+		if( abs($write-$read) > 60 ) {
 			echo "randomness check failed: diff: " .($write-$read) .PHP_EOL;
 			$fail = true;
 		}
