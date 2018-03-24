@@ -1,3 +1,3 @@
-#!/bin/bash
+#!/bin/sh
 export LD_PRELOAD=liblibgo.so
 /usr/local/php/bin/php $@
