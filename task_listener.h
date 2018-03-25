@@ -26,10 +26,7 @@ using namespace co;
 	zval*                      EG_user_error_handler;   \
 
 #ifdef ZTS
-    /*save_to_ctx->tsrm_ls = tsrm_ls*/
 	#define PHPGO_SAVE_TSRMLS(save_to_ctx) save_to_ctx->TSRMLS_C = TSRMLS_C
-	
-	/*void*** tsrm_ls = load_from_ctx->trsm_ls*/
 	#define PHPGO_LOAD_TSRMLS(load_from_ctx) TSRMLS_C = load_from_ctx->TSRMLS_C
 #else
 	#define PHPGO_SAVE_TSRMLS(save_to_ctx)
