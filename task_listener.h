@@ -26,7 +26,10 @@ using namespace co;
 	zval*                      EG_user_error_handler;   \
 
 #ifdef ZTS
+    /*save_to_ctx->tsrm_ls = tsrm_ls*/
 	#define PHPGO_SAVE_TSRMLS(save_to_ctx) save_to_ctx->TSRMLS_C = TSRMLS_C
+	
+	/*void*** tsrm_ls = load_from_ctx->trsm_ls*/
 	#define PHPGO_LOAD_TSRMLS(load_from_ctx) TSRMLS_C = load_from_ctx->TSRMLS_C
 #else
 	#define PHPGO_SAVE_TSRMLS(save_to_ctx)
@@ -73,17 +76,17 @@ using namespace co;
 	EG(user_error_handler   )   =  load_from_ctx->EG_user_error_handler  ; \
 }                                                                          \
 
-struct PhpgoContext : public FreeableImpl{
+struct PhpgoBaseContext{
 	__PHPGO_CONTEXT_FIELDS__
 };
+
+struct PhpgoContext : public PhpgoBaseContext, public FreeableImpl{};
 
 // the Scheduler Context is essentially the same as the Task's context,
 // but since Scheduler Context  is thread local and thread locals cannot
 // have virtual members, we have to remove the FreeableImpl from the
 // Scheduler Context...
-struct PhpgoSchedulerContext{
-	__PHPGO_CONTEXT_FIELDS__
-};
+struct PhpgoSchedulerContext : public PhpgoBaseContext{};
 
 // the scheduler may be executed in multiple thread: 
 // use thread local variable to store the scheduler EG's	
