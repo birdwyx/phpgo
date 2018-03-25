@@ -98,15 +98,32 @@ void* phpgo_go(zend_uint argc, zval ***args TSRMLS_DC){
 	}
 	VM_STACK_PUSH(go_routine_vm_stack, (unsigned long)argc);
 	
-	go_stack(32*1024) [go_routine_vm_stack] {
-		// the thread to run this go routine may not be the same as the thread calling the
-		// phpgo_go(), thus we need to fetch explictly the TSRMLS for current thread
-	#ifdef ZTS
-		TSRMLS_FETCH_FROM_CTX(scheduler_ctx.TSRMLS_C); //void ***tsrm_ls = (void ***)scheduler_ctx.tsrm_ls
-	#endif
+	go_stack(32*1024) [go_routine_vm_stack TSRMLS_CC] {
+		
+		PhpgoContext* ctx = new PhpgoContext(); 
+		if( !ctx ) return;
+		
+		kls_key_t phpgo_context_key = TaskLocalStorage::CreateKey("PhpgoContext");
+		if( !phpgo_context_key ) return;
+		
+		if( !TaskLocalStorage::SetSpecific(phpgo_context_key, ctx) ) return;
+
+		// set the tsrm_ls to my prarent, i.e., inherit all globals from my parent
+		PHPGO_SAVE_TSRMLS(ctx);
+
+		// get the scheduler context form scheduler_ctx (thread local)
+		PhpgoSchedulerContext* sched_ctx = &scheduler_ctx;
+		
+		// save the scheduler's context, and swap to our own context.
+		// - at this point the ctx is all-null, thus after context swap the 
+		// affected globals are all null
+		// - the sched_ctx->tsrm_ls, and ctx->tsrm_ls, as required by the 
+		// PHPGO_SWAP_CONTEXT(), have already been set at in the  
+		// PhpgoTaskListener::onSwapIn() and PHPGO_SAVE_TSRMLS(ctx) above,
+		// thus it's safe to call
+		PHPGO_SWAP_CONTEXT(sched_ctx, ctx); //PHPGO_SWAP_CONTEXT(save_to_ctx, load_from_ctx)
 		
 		EG(current_execute_data) = NULL;
-		
 		//set the argument stack to the dedicate stack
 		EG(argument_stack) = go_routine_vm_stack;
 		

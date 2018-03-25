@@ -25,6 +25,54 @@ using namespace co;
 	zval*                      EG_error_zval_ptr;       \
 	zval*                      EG_user_error_handler;   \
 
+#ifdef ZTS
+    /*save_to_ctx->tsrm_ls = tsrm_ls*/
+	#define PHPGO_SAVE_TSRMLS(save_to_ctx) save_to_ctx->TSRMLS_C = TSRMLS_C
+	
+	/*void*** tsrm_ls = load_from_ctx->trsm_ls*/
+	#define PHPGO_LOAD_TSRMLS(load_from_ctx) TSRMLS_C = load_from_ctx->TSRMLS_C
+#else
+	#define PHPGO_SAVE_TSRMLS(save_to_ctx)
+	#define PHPGO_LOAD_TSRMLS(load_from_ctx)
+#endif
+
+/*
+* save the current running context to "save_to_ctx" , and load the "load_from_ctx" 
+* into running environment
+* Note: for ZTS: the save_to_ctx->tsrm_ls and load_from_ctx->trsm_ls must already
+* correctly set before calling the PHPGO_SWAP_CONTEXT()
+*/
+#define PHPGO_SWAP_CONTEXT(save_to_ctx, load_from_ctx)                     \
+	/* save the current EG  */                                             \
+	PHPGO_LOAD_TSRMLS(save_to_ctx);                                        \
+	save_to_ctx->EG_current_execute_data  =  EG(current_execute_data    ); \
+	save_to_ctx->EG_argument_stack        =  EG(argument_stack          ); \
+	save_to_ctx->EG_scope                 =  EG(scope                   ); \
+	save_to_ctx->EG_This                  =  EG(This                    ); \
+	save_to_ctx->EG_called_scope          =  EG(called_scope            ); \
+	save_to_ctx->EG_active_symbol_table   =  EG(active_symbol_table     ); \
+	save_to_ctx->EG_return_value_ptr_ptr  =  EG(return_value_ptr_ptr    ); \
+	save_to_ctx->EG_active_op_array       =  EG(active_op_array         ); \
+	save_to_ctx->EG_opline_ptr            =  EG(opline_ptr              ); \
+	save_to_ctx->EG_error_zval            =  EG(error_zval              ); \
+	save_to_ctx->EG_error_zval_ptr        =  EG(error_zval_ptr          ); \
+	save_to_ctx->EG_user_error_handler    =  EG(user_error_handler      ); \
+	                                                                       \
+	/* load EG from the task specific context*/                            \
+	PHPGO_LOAD_TSRMLS(load_from_ctx);                                      \
+	EG(current_execute_data )   =  load_from_ctx->EG_current_execute_data; \
+	EG(argument_stack       )   =  load_from_ctx->EG_argument_stack      ; \
+	EG(scope                )   =  load_from_ctx->EG_scope               ; \
+	EG(This                 )   =  load_from_ctx->EG_This                ; \
+	EG(called_scope         )   =  load_from_ctx->EG_called_scope        ; \
+	EG(active_symbol_table  )   =  load_from_ctx->EG_active_symbol_table ; \
+	EG(return_value_ptr_ptr )   =  load_from_ctx->EG_return_value_ptr_ptr; \
+	EG(active_op_array      )   =  load_from_ctx->EG_active_op_array     ; \
+	EG(opline_ptr           )   =  load_from_ctx->EG_opline_ptr          ; \
+	EG(error_zval           )   =  load_from_ctx->EG_error_zval          ; \
+	EG(error_zval_ptr       )   =  load_from_ctx->EG_error_zval_ptr      ; \
+	EG(user_error_handler   )   =  load_from_ctx->EG_user_error_handler  ; \
+
 struct PhpgoContext : public FreeableImpl{
 	__PHPGO_CONTEXT_FIELDS__
 };
@@ -40,8 +88,6 @@ struct PhpgoSchedulerContext{
 // the scheduler may be executed in multiple thread: 
 // use thread local variable to store the scheduler EG's	
 static thread_local PhpgoSchedulerContext scheduler_ctx;
-
-
 	
 class PhpgoTaskListener : public Scheduler::TaskListener{
 	
@@ -75,69 +121,34 @@ public:
 		if(old_task_listener){
 			old_task_listener->onSwapIn(task_id);
 		}
-		
-		PhpgoContext* ctx;
-		if( !(ctx = (PhpgoContext*)TaskLocalStorage::GetSpecific(phpgo_context_key)) ){
-			ctx = new PhpgoContext();
-			TaskLocalStorage::SetSpecific(phpgo_context_key, ctx);
-		}
-		
-		PhpgoSchedulerContext* sched_ctx    =  &scheduler_ctx;
-		
+
+		PhpgoSchedulerContext* sched_ctx    =  &scheduler_ctx; /*scheduler_ctx is thread local*/
 	#ifdef ZTS
-	
 		/*
 		* for optimal performance:
 		* cache the tsrm_ls for this scheduler thread into this scheduler context
 		* so that we don't need to fetch from the operating system tls every time.
 		*/
 		if( UNEXPECTED(!sched_ctx->TSRMLS_C) ){
-			//this is the first time task run, 
+			//this is the first time this scheduler to run, 
 			//fetch and store the thread specific tsrm_ls to local context
 			TSRMLS_FETCH();                          // void ***tsrm_ls = (void ***) ts_resource_ex(0, NULL)
 			TSRMLS_SET_CTX(sched_ctx->TSRMLS_C);     // sched_ctx->tsrm_ls = (void ***) tsrm_ls
 		}
-		
-		/*
-		* Fetch the thread specific tsrm_ls from the scheduler context 
-		* (which is thread local) this will also work under work-steal since
-		* the tsrm_ls fetched is always for the current thread running 
-		* the scheduler, thus the EG saved in onSwapIn() and retored in
-		* onSwapOut() are always of this scheduler
-		*/
-		TSRMLS_FETCH_FROM_CTX(sched_ctx->TSRMLS_C);  //	void ***tsrm_ls = (void ***)sched_ctx->tsrm_ls
 	#endif
-		
-		// save the scheduler EGs first
-		sched_ctx->EG_current_execute_data  =  EG(current_execute_data    );
-		sched_ctx->EG_argument_stack        =  EG(argument_stack          );
-		sched_ctx->EG_scope                 =  EG(scope                   );
-		sched_ctx->EG_This                  =  EG(This                    );
-		sched_ctx->EG_called_scope          =  EG(called_scope            );
-		sched_ctx->EG_active_symbol_table   =  EG(active_symbol_table     );
-		sched_ctx->EG_return_value_ptr_ptr  =  EG(return_value_ptr_ptr    );
-		sched_ctx->EG_active_op_array       =  EG(active_op_array         );
-		sched_ctx->EG_opline_ptr            =  EG(opline_ptr              );
-		sched_ctx->EG_error_zval            =  EG(error_zval              );
-		sched_ctx->EG_error_zval_ptr        =  EG(error_zval_ptr          );
-		sched_ctx->EG_user_error_handler    =  EG(user_error_handler      );
-		
-		// restore EG to the task specific context (will be all-null on the first time run)
-		EG(current_execute_data )           =  ctx->EG_current_execute_data;
-		EG(argument_stack       )           =  ctx->EG_argument_stack      ;
-		EG(scope                )           =  ctx->EG_scope               ;
-		EG(This                 )           =  ctx->EG_This                ;
-		EG(called_scope         )           =  ctx->EG_called_scope        ;
-		EG(active_symbol_table  )           =  ctx->EG_active_symbol_table ;
-		EG(return_value_ptr_ptr )           =  ctx->EG_return_value_ptr_ptr;
-		EG(active_op_array      )           =  ctx->EG_active_op_array     ;
-		EG(opline_ptr           )           =  ctx->EG_opline_ptr          ;
-		EG(error_zval           )           =  ctx->EG_error_zval          ;
-		EG(error_zval_ptr       )           =  ctx->EG_error_zval_ptr      ;
-		EG(user_error_handler   )           =  ctx->EG_user_error_handler  ;
-		
-		//printf("---------->onSwapIn(%ld) returns<-----------\n", task_id);
 
+		PhpgoContext* ctx;
+		if( !( ctx = (PhpgoContext*)TaskLocalStorage::GetSpecific(phpgo_context_key) ) ){
+			// first time swap into a task:
+			// return - not to do the PHPGO_SWAP_CONTEXT since it will be done in the
+			// phpgo_go()
+			return;
+		}
+		
+		// running -> sched_ctx and ctx -> running
+		PHPGO_SWAP_CONTEXT(sched_ctx, ctx);
+
+		//printf("---------->onSwapIn(%ld) returns<-----------\n", task_id);
 	}
 
 	/**
@@ -154,41 +165,11 @@ public:
 		}
 
 		PhpgoSchedulerContext* sched_ctx    =  &scheduler_ctx;
-		
-	#ifdef ZTS
-		//assert(sched_ctx->TSRMLS_C);
-		TSRMLS_FETCH_FROM_CTX(sched_ctx->TSRMLS_C); //	void ***tsrm_ls = (void ***)sched_ctx->tsrm_ls
-	#endif
-		
 		PhpgoContext* ctx = (PhpgoContext*)TaskLocalStorage::GetSpecific(phpgo_context_key);
+		if(!ctx) return;
 		
-		// save the go routine's EG in it's task specific context
-		ctx->EG_current_execute_data  =  EG(current_execute_data    );
-		ctx->EG_argument_stack        =  EG(argument_stack          );
-		ctx->EG_scope                 =  EG(scope                   );
-		ctx->EG_This                  =  EG(This                    );
-		ctx->EG_called_scope          =  EG(called_scope            );
-		ctx->EG_active_symbol_table   =  EG(active_symbol_table     );
-		ctx->EG_return_value_ptr_ptr  =  EG(return_value_ptr_ptr    );
-		ctx->EG_active_op_array       =  EG(active_op_array         );
-		ctx->EG_opline_ptr            =  EG(opline_ptr              );
-		ctx->EG_error_zval            =  EG(error_zval              );
-		ctx->EG_error_zval_ptr        =  EG(error_zval_ptr          );
-		ctx->EG_user_error_handler    =  EG(user_error_handler      );
-		
-		// restore EG to the scheduler EGs
-		EG(current_execute_data )     =  sched_ctx->EG_current_execute_data;
-		EG(argument_stack       )     =  sched_ctx->EG_argument_stack      ;
-		EG(scope                )     =  sched_ctx->EG_scope               ;
-		EG(This                 )     =  sched_ctx->EG_This                ;
-		EG(called_scope         )     =  sched_ctx->EG_called_scope        ;
-		EG(active_symbol_table  )     =  sched_ctx->EG_active_symbol_table ;
-		EG(return_value_ptr_ptr )     =  sched_ctx->EG_return_value_ptr_ptr;
-		EG(active_op_array      )     =  sched_ctx->EG_active_op_array     ;
-		EG(opline_ptr           )     =  sched_ctx->EG_opline_ptr          ;
-		EG(error_zval           )     =  sched_ctx->EG_error_zval          ;
-		EG(error_zval_ptr       )     =  sched_ctx->EG_error_zval_ptr      ;
-		EG(user_error_handler   )     =  sched_ctx->EG_user_error_handler  ;
+		// running -> ctx and sched_ctx -> running
+		PHPGO_SWAP_CONTEXT(ctx, sched_ctx);
 		
 		//printf("---------->onSwapOut(%ld) returns<-----------\n", task_id);
 	}
