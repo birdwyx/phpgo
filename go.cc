@@ -98,7 +98,7 @@ void* phpgo_go(zend_uint argc, zval ***args TSRMLS_DC){
 	}
 	VM_STACK_PUSH(go_routine_vm_stack, (unsigned long)argc);
 	
-	go_stack(32*1024) [go_routine_vm_stack TSRMLS_CC] {
+	go_stack(32*1024) [go_routine_vm_stack TSRMLS_CC] ()mutable {
 		
 		PhpgoContext* ctx = new PhpgoContext(); 
 		if( !ctx ) return;

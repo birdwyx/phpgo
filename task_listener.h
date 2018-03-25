@@ -43,6 +43,8 @@ using namespace co;
 * correctly set before calling the PHPGO_SWAP_CONTEXT()
 */
 #define PHPGO_SWAP_CONTEXT(save_to_ctx, load_from_ctx)                     \
+{                                                                          \
+    TSRMLS_D;                                                              \
 	/* save the current EG  */                                             \
 	PHPGO_LOAD_TSRMLS(save_to_ctx);                                        \
 	save_to_ctx->EG_current_execute_data  =  EG(current_execute_data    ); \
@@ -72,6 +74,7 @@ using namespace co;
 	EG(error_zval           )   =  load_from_ctx->EG_error_zval          ; \
 	EG(error_zval_ptr       )   =  load_from_ctx->EG_error_zval_ptr      ; \
 	EG(user_error_handler   )   =  load_from_ctx->EG_user_error_handler  ; \
+}                                                                          \
 
 struct PhpgoContext : public FreeableImpl{
 	__PHPGO_CONTEXT_FIELDS__
