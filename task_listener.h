@@ -31,6 +31,14 @@ using namespace co;
     TSRMLS_FIELD;                                                          \
 	/* save the current EG  */                                             \
 	PHPGO_LOAD_TSRMLS(save_to_ctx);                                        \
+	GET_HTTP_GLOBAL("_GET",    save_to_ctx->PG_http_globals, TRACK_VARS_GET);        \
+	GET_HTTP_GLOBAL("_POST",   save_to_ctx->PG_http_globals, TRACK_VARS_POST);       \
+	GET_HTTP_GLOBAL("_COOKIE", save_to_ctx->PG_http_globals, TRACK_VARS_COOKIE);     \
+	GET_HTTP_GLOBAL("_SERVER", save_to_ctx->PG_http_globals, TRACK_VARS_SERVER);     \
+	GET_HTTP_GLOBAL("_ENV",    save_to_ctx->PG_http_globals, TRACK_VARS_ENV);        \
+	GET_HTTP_GLOBAL("_FILES",  save_to_ctx->PG_http_globals, TRACK_VARS_FILES);      \
+	GET_HTTP_REQUEST_GLOBAL(   save_to_ctx->http_request_global); /*get $_REQUEST*/  \
+
 	save_to_ctx->EG_current_execute_data  =  EG(current_execute_data    ); \
 	save_to_ctx->EG_argument_stack        =  EG(argument_stack          ); \
 	save_to_ctx->EG_scope                 =  EG(scope                   ); \
@@ -67,7 +75,16 @@ using namespace co;
 	EG(error_zval           )   =  load_from_ctx->EG_error_zval          ; \
 	EG(error_zval_ptr       )   =  load_from_ctx->EG_error_zval_ptr      ; \
 	EG(user_error_handler   )   =  load_from_ctx->EG_user_error_handler  ; \
-}                                                                          \
+	memcpy( PG(http_globals), load_from_ctx->PG_http_globals, sizeof(PG(http_globals)) ); \
+	                                                                                      \
+	SET_HTTP_GLOBAL("_GET",   load_from_ctx->PG_http_globals, TRACK_VARS_GET);            \
+	SET_HTTP_GLOBAL("_POST",  load_from_ctx->PG_http_globals, TRACK_VARS_POST);           \
+	SET_HTTP_GLOBAL("_COOKIE",load_from_ctx->PG_http_globals, TRACK_VARS_COOKIE);         \
+	SET_HTTP_GLOBAL("_SERVER",load_from_ctx->PG_http_globals, TRACK_VARS_SERVER);         \
+	SET_HTTP_GLOBAL("_ENV",   load_from_ctx->PG_http_globals, TRACK_VARS_ENV);            \
+	SET_HTTP_GLOBAL("_FILES", load_from_ctx->PG_http_globals, TRACK_VARS_FILES);          \
+	SET_HTTP_REQUEST_GLOBAL(  load_from_ctx->http_request_global); /*set $_REQUEST*/      \
+}                                                                                         \
 
 /*null-out our concerned globals to avoid potential problem*/
 #define PHPGO_INITIALIZE_RUNNING_ENVIRONMENT()                     \
@@ -88,6 +105,44 @@ using namespace co;
 	/*memset(PG(http_globals), 0, sizeof(PG(http_globals)) );*/    \
 }
 
+#define GET_HTTP_GLOBAL(name, http_globals, offset) \
+do{ \
+	zval** ppz_arr = nullptr; \
+	zend_hash_find(&EG(symbol_table), name, sizeof(name), (void**)&ppz_arr); \
+	if(ppz_arr) { \
+		http_globals[offset] = *ppz_arr; \
+		Z_ADDREF_P(*ppz_arr); \
+	}else{ \
+		http_globals[offset] = nullptr; \
+	} \
+}while(0)
+
+#define GET_HTTP_REQUEST_GLOBAL(http_request_global) \
+do{ \
+	zval** ppz_arr = nullptr; \
+	zend_hash_find(&EG(symbol_table), "_REQUEST", sizeof("_REQUEST"), (void**)&ppz_arr); \
+	if(ppz_arr){ \
+		http_request_global = *ppz_arr; \
+		Z_ADDREF_P(*ppz_arr); \
+	}else{ \
+		http_request_global = nullptr; \
+	} \
+}while(0)
+
+#define SET_HTTP_GLOBAL(name, http_globals, offset) \
+do{ \
+	if( http_globals[offset] ) {\
+		zend_hash_update(&EG(symbol_table), name, sizeof(name), http_globals[offset], sizeof(zval *), NULL); \
+	} \
+}while(0)
+
+#define SET_HTTP_REQUEST_GLOBAL(http_request_global) \
+do{ \
+	if( http_request_global ) {\
+		zend_hash_update(&EG(symbol_table), "_REQUEST", sizeof("_REQUEST"), http_request_global, sizeof(zval *), NULL); \
+	} \
+}while(0)
+
 struct PhpgoBaseContext{
 	TSRMLS_FIELD;     /*ZTS: void ***tsrm_ls;*/         
 	struct _zend_execute_data* EG_current_execute_data; 
@@ -102,6 +157,8 @@ struct PhpgoBaseContext{
 	zval                       EG_error_zval;           
 	zval*                      EG_error_zval_ptr;       
 	zval*                      EG_user_error_handler;   
+	zval*                      PG_http_globals[NUM_TRACK_VARS];
+	zval*                      http_request_global;
 };
 
 struct PhpgoContext : public PhpgoBaseContext, public FreeableImpl{
