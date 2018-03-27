@@ -141,16 +141,14 @@ public:
 			old_task_listener->onSwapIn(task_id);
 		}
 
-		PhpgoSchedulerContext* sched_ctx    =  &scheduler_ctx; /*scheduler_ctx is thread local*/
+		PhpgoSchedulerContext* sched_ctx = &scheduler_ctx; /*scheduler_ctx is thread local*/
+		PhpgoContext* ctx = (PhpgoContext*)TaskLocalStorage::GetSpecific(phpgo_context_key);
 
-		PhpgoContext* ctx;
-		if( !( ctx = (PhpgoContext*)TaskLocalStorage::GetSpecific(phpgo_context_key) ) ){
-			// first time swap into a task:
-			// return - not to do the PHPGO_SWAP_CONTEXT since it will be done in the
-			// phpgo_go()
-			return;
-		}
-		
+		// first time swap into a task:
+		// return - not to do the PHPGO_SAVE/LOAD_CONTEXT since they will be done in the
+		// phpgo_go()
+		if(!ctx) return;
+
 		// running -> sched_ctx and ctx -> running
 		PHPGO_SAVE_CONTEXT(sched_ctx);
 		PHPGO_LOAD_CONTEXT(ctx);
@@ -171,7 +169,7 @@ public:
 			old_task_listener->onSwapOut(task_id);
 		}
 
-		PhpgoSchedulerContext* sched_ctx    =  &scheduler_ctx;
+		PhpgoSchedulerContext* sched_ctx = &scheduler_ctx;
 		PhpgoContext* ctx = (PhpgoContext*)TaskLocalStorage::GetSpecific(phpgo_context_key);
 		if(!ctx) return;
 		
