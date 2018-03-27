@@ -10,21 +10,6 @@ using namespace co;
 	#define TSRMLS_FIELD
 #endif
 
-#define __PHPGO_CONTEXT_FIELDS__ 	                    \
-	TSRMLS_FIELD;     /*ZTS: void ***tsrm_ls;*/         \
-	struct _zend_execute_data* EG_current_execute_data; \
-	zend_vm_stack 			   EG_argument_stack;       \
-	zend_class_entry*		   EG_scope;                \
-	zval*					   EG_This;                 \
-	zend_class_entry*		   EG_called_scope;         \
-	HashTable*				   EG_active_symbol_table;  \
-	zval**					   EG_return_value_ptr_ptr; \
-	zend_op_array*			   EG_active_op_array;      \
-	zend_op**				   EG_opline_ptr;           \
-	zval                       EG_error_zval;           \
-	zval*                      EG_error_zval_ptr;       \
-	zval*                      EG_user_error_handler;   \
-
 #ifdef ZTS
     /*save_to_ctx->tsrm_ls = tsrm_ls*/
 	#define PHPGO_SAVE_TSRMLS(save_to_ctx) save_to_ctx->TSRMLS_C = TSRMLS_C
@@ -77,7 +62,19 @@ using namespace co;
 }                                                                          \
 
 struct PhpgoBaseContext{
-	__PHPGO_CONTEXT_FIELDS__
+	TSRMLS_FIELD;     /*ZTS: void ***tsrm_ls;*/         
+	struct _zend_execute_data* EG_current_execute_data; 
+	zend_vm_stack 			   EG_argument_stack;       
+	zend_class_entry*		   EG_scope;                
+	zval*					   EG_This;                 
+	zend_class_entry*		   EG_called_scope;         
+	HashTable*				   EG_active_symbol_table;  
+	zval**					   EG_return_value_ptr_ptr; 
+	zend_op_array*			   EG_active_op_array;      
+	zend_op**				   EG_opline_ptr;           
+	zval                       EG_error_zval;           
+	zval*                      EG_error_zval_ptr;       
+	zval*                      EG_user_error_handler;   
 };
 
 struct PhpgoContext : public PhpgoBaseContext, public FreeableImpl{
