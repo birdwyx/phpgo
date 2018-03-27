@@ -23,6 +23,44 @@ using namespace co;
 
 #define NUM_TRACK_VARS	6
 
+#define GET_HTTP_GLOBAL(name, http_globals, offset) \
+do{ \
+	zval** ppz_arr = nullptr; \
+	zend_hash_find(&EG(symbol_table), name, sizeof(name), (void**)&ppz_arr); \
+	if(ppz_arr) { \
+		http_globals[offset] = *ppz_arr; \
+		Z_ADDREF_P(*ppz_arr); \
+	}else{ \
+		http_globals[offset] = nullptr; \
+	} \
+}while(0)
+
+#define GET_HTTP_REQUEST_GLOBAL(http_request_global) \
+do{ \
+	zval** ppz_arr = nullptr; \
+	zend_hash_find(&EG(symbol_table), "_REQUEST", sizeof("_REQUEST"), (void**)&ppz_arr); \
+	if(ppz_arr){ \
+		http_request_global = *ppz_arr; \
+		Z_ADDREF_P(*ppz_arr); \
+	}else{ \
+		http_request_global = nullptr; \
+	} \
+}while(0)
+
+#define SET_HTTP_GLOBAL(name, http_globals, offset) \
+do{ \
+	if( http_globals[offset] ) {\
+		zend_hash_update(&EG(symbol_table), name, sizeof(name), http_globals[offset], sizeof(zval *), NULL); \
+	} \
+}while(0)
+
+#define SET_HTTP_REQUEST_GLOBAL(http_request_global) \
+do{ \
+	if( http_request_global ) {\
+		zend_hash_update(&EG(symbol_table), "_REQUEST", sizeof("_REQUEST"), http_request_global, sizeof(zval *), NULL); \
+	} \
+}while(0)
+
 struct PhpgoBaseContext{
 	TSRMLS_FIELD;     /*ZTS: void ***tsrm_ls;*/         
 	struct _zend_execute_data* EG_current_execute_data; 
@@ -112,44 +150,6 @@ public:
 		TSRMLS_SET_CTX(this->TSRMLS_C);     // this->tsrm_ls = (void ***) tsrm_ls
 	}
 };
-
-#define GET_HTTP_GLOBAL(name, http_globals, offset) \
-do{ \
-	zval** ppz_arr = nullptr; \
-	zend_hash_find(&EG(symbol_table), name, sizeof(name), (void**)&ppz_arr); \
-	if(ppz_arr) { \
-		http_globals[offset] = *ppz_arr; \
-		Z_ADDREF_P(*ppz_arr); \
-	}else{ \
-		http_globals[offset] = nullptr; \
-	} \
-}while(0)
-
-#define GET_HTTP_REQUEST_GLOBAL(http_request_global) \
-do{ \
-	zval** ppz_arr = nullptr; \
-	zend_hash_find(&EG(symbol_table), "_REQUEST", sizeof("_REQUEST"), (void**)&ppz_arr); \
-	if(ppz_arr){ \
-		http_request_global = *ppz_arr; \
-		Z_ADDREF_P(*ppz_arr); \
-	}else{ \
-		http_request_global = nullptr; \
-	} \
-}while(0)
-
-#define SET_HTTP_GLOBAL(name, http_globals, offset) \
-do{ \
-	if( http_globals[offset] ) {\
-		zend_hash_update(&EG(symbol_table), name, sizeof(name), http_globals[offset], sizeof(zval *), NULL); \
-	} \
-}while(0)
-
-#define SET_HTTP_REQUEST_GLOBAL(http_request_global) \
-do{ \
-	if( http_request_global ) {\
-		zend_hash_update(&EG(symbol_table), "_REQUEST", sizeof("_REQUEST"), http_request_global, sizeof(zval *), NULL); \
-	} \
-}while(0)
 
 // the scheduler may be executed in multiple thread: 
 // use thread local variable to store the scheduler EG's	
