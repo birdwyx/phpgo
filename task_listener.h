@@ -39,6 +39,59 @@ struct PhpgoBaseContext{
 	zval*                      EG_user_error_handler;   
 	zval*                      PG_http_globals[NUM_TRACK_VARS];
 	zval*                      http_request_global;
+public:
+	inline void SwapOut(){
+		TSRMLS_FIELD;                                                          
+		/* save the current EG  */                                             
+		PHPGO_LOAD_TSRMLS(this);                                        
+		GET_HTTP_GLOBAL("_GET",    this->PG_http_globals, TRACK_VARS_GET);        
+		GET_HTTP_GLOBAL("_POST",   this->PG_http_globals, TRACK_VARS_POST);       
+		GET_HTTP_GLOBAL("_COOKIE", this->PG_http_globals, TRACK_VARS_COOKIE);     
+		GET_HTTP_GLOBAL("_SERVER", this->PG_http_globals, TRACK_VARS_SERVER);     
+		GET_HTTP_GLOBAL("_ENV",    this->PG_http_globals, TRACK_VARS_ENV);        
+		GET_HTTP_GLOBAL("_FILES",  this->PG_http_globals, TRACK_VARS_FILES);      
+		GET_HTTP_REQUEST_GLOBAL(   this->http_request_global); /*get $_REQUEST*/  
+																						
+		this->EG_current_execute_data  =  EG(current_execute_data    ); 
+		this->EG_argument_stack        =  EG(argument_stack          ); 
+		this->EG_scope                 =  EG(scope                   ); 
+		this->EG_This                  =  EG(This                    ); 
+		this->EG_called_scope          =  EG(called_scope            ); 
+		this->EG_active_symbol_table   =  EG(active_symbol_table     ); 
+		this->EG_return_value_ptr_ptr  =  EG(return_value_ptr_ptr    ); 
+		this->EG_active_op_array       =  EG(active_op_array         ); 
+		this->EG_opline_ptr            =  EG(opline_ptr              ); 
+		this->EG_error_zval            =  EG(error_zval              ); 
+		this->EG_error_zval_ptr        =  EG(error_zval_ptr          ); 
+		this->EG_user_error_handler    =  EG(user_error_handler      ); 
+	}
+
+	inline void SwapIn(){
+		TSRMLS_FIELD;                                                          
+		/* load EG from the task specific context*/                            
+		PHPGO_LOAD_TSRMLS(this);                                      
+		EG(current_execute_data )   =  this->EG_current_execute_data; 
+		EG(argument_stack       )   =  this->EG_argument_stack      ; 
+		EG(scope                )   =  this->EG_scope               ; 
+		EG(This                 )   =  this->EG_This                ; 
+		EG(called_scope         )   =  this->EG_called_scope        ; 
+		EG(active_symbol_table  )   =  this->EG_active_symbol_table ; 
+		EG(return_value_ptr_ptr )   =  this->EG_return_value_ptr_ptr; 
+		EG(active_op_array      )   =  this->EG_active_op_array     ; 
+		EG(opline_ptr           )   =  this->EG_opline_ptr          ; 
+		EG(error_zval           )   =  this->EG_error_zval          ; 
+		EG(error_zval_ptr       )   =  this->EG_error_zval_ptr      ; 
+		EG(user_error_handler   )   =  this->EG_user_error_handler  ; 
+		memcpy( PG(http_globals), this->PG_http_globals, sizeof(PG(http_globals)) ); 
+																							
+		SET_HTTP_GLOBAL("_GET",   this->PG_http_globals, TRACK_VARS_GET);            
+		SET_HTTP_GLOBAL("_POST",  this->PG_http_globals, TRACK_VARS_POST);           
+		SET_HTTP_GLOBAL("_COOKIE",this->PG_http_globals, TRACK_VARS_COOKIE);         
+		SET_HTTP_GLOBAL("_SERVER",this->PG_http_globals, TRACK_VARS_SERVER);         
+		SET_HTTP_GLOBAL("_ENV",   this->PG_http_globals, TRACK_VARS_ENV);            
+		SET_HTTP_GLOBAL("_FILES", this->PG_http_globals, TRACK_VARS_FILES);          
+		SET_HTTP_REQUEST_GLOBAL(  this->http_request_global); /*set $_REQUEST*/      
+	}
 };
 
 struct PhpgoContext : public PhpgoBaseContext, public FreeableImpl{
@@ -100,72 +153,7 @@ do{ \
 
 // the scheduler may be executed in multiple thread: 
 // use thread local variable to store the scheduler EG's	
-static thread_local PhpgoSchedulerContext scheduler_ctx;
-
-/*
-* save the current running context to "save_to_ctx"
-* Note: for ZTS: the save_to_ctx->tsrm_ls must already correctly set before 
-* calling the PHPGO_SAVE_CONTEXT()
-*/
-#define PHPGO_SAVE_CONTEXT(save_to_ctx)                                    \
-{                                                                          \
-    TSRMLS_FIELD;                                                          \
-	/* save the current EG  */                                             \
-	PHPGO_LOAD_TSRMLS(save_to_ctx);                                        \
-	GET_HTTP_GLOBAL("_GET",    save_to_ctx->PG_http_globals, TRACK_VARS_GET);        \
-	GET_HTTP_GLOBAL("_POST",   save_to_ctx->PG_http_globals, TRACK_VARS_POST);       \
-	GET_HTTP_GLOBAL("_COOKIE", save_to_ctx->PG_http_globals, TRACK_VARS_COOKIE);     \
-	GET_HTTP_GLOBAL("_SERVER", save_to_ctx->PG_http_globals, TRACK_VARS_SERVER);     \
-	GET_HTTP_GLOBAL("_ENV",    save_to_ctx->PG_http_globals, TRACK_VARS_ENV);        \
-	GET_HTTP_GLOBAL("_FILES",  save_to_ctx->PG_http_globals, TRACK_VARS_FILES);      \
-	GET_HTTP_REQUEST_GLOBAL(   save_to_ctx->http_request_global); /*get $_REQUEST*/  \
-                                                                                     \
-	save_to_ctx->EG_current_execute_data  =  EG(current_execute_data    ); \
-	save_to_ctx->EG_argument_stack        =  EG(argument_stack          ); \
-	save_to_ctx->EG_scope                 =  EG(scope                   ); \
-	save_to_ctx->EG_This                  =  EG(This                    ); \
-	save_to_ctx->EG_called_scope          =  EG(called_scope            ); \
-	save_to_ctx->EG_active_symbol_table   =  EG(active_symbol_table     ); \
-	save_to_ctx->EG_return_value_ptr_ptr  =  EG(return_value_ptr_ptr    ); \
-	save_to_ctx->EG_active_op_array       =  EG(active_op_array         ); \
-	save_to_ctx->EG_opline_ptr            =  EG(opline_ptr              ); \
-	save_to_ctx->EG_error_zval            =  EG(error_zval              ); \
-	save_to_ctx->EG_error_zval_ptr        =  EG(error_zval_ptr          ); \
-	save_to_ctx->EG_user_error_handler    =  EG(user_error_handler      ); \
-}                                                                          \
-
-/*                                                                                   
-* load the "load_from_ctx" into running environment                                  
-* Note: for ZTS: load_from_ctx->trsm_ls must already correctly set before            
-* calling the PHPGO_LOAD_CONTEXT()                                                   
-*/ 
-#define PHPGO_LOAD_CONTEXT(load_from_ctx)                                  \
-{                                                                          \
-	TSRMLS_FIELD;                                                          \
-	/* load EG from the task specific context*/                            \
-	PHPGO_LOAD_TSRMLS(load_from_ctx);                                      \
-	EG(current_execute_data )   =  load_from_ctx->EG_current_execute_data; \
-	EG(argument_stack       )   =  load_from_ctx->EG_argument_stack      ; \
-	EG(scope                )   =  load_from_ctx->EG_scope               ; \
-	EG(This                 )   =  load_from_ctx->EG_This                ; \
-	EG(called_scope         )   =  load_from_ctx->EG_called_scope        ; \
-	EG(active_symbol_table  )   =  load_from_ctx->EG_active_symbol_table ; \
-	EG(return_value_ptr_ptr )   =  load_from_ctx->EG_return_value_ptr_ptr; \
-	EG(active_op_array      )   =  load_from_ctx->EG_active_op_array     ; \
-	EG(opline_ptr           )   =  load_from_ctx->EG_opline_ptr          ; \
-	EG(error_zval           )   =  load_from_ctx->EG_error_zval          ; \
-	EG(error_zval_ptr       )   =  load_from_ctx->EG_error_zval_ptr      ; \
-	EG(user_error_handler   )   =  load_from_ctx->EG_user_error_handler  ; \
-	memcpy( PG(http_globals), load_from_ctx->PG_http_globals, sizeof(PG(http_globals)) ); \
-	                                                                                      \
-	SET_HTTP_GLOBAL("_GET",   load_from_ctx->PG_http_globals, TRACK_VARS_GET);            \
-	SET_HTTP_GLOBAL("_POST",  load_from_ctx->PG_http_globals, TRACK_VARS_POST);           \
-	SET_HTTP_GLOBAL("_COOKIE",load_from_ctx->PG_http_globals, TRACK_VARS_COOKIE);         \
-	SET_HTTP_GLOBAL("_SERVER",load_from_ctx->PG_http_globals, TRACK_VARS_SERVER);         \
-	SET_HTTP_GLOBAL("_ENV",   load_from_ctx->PG_http_globals, TRACK_VARS_ENV);            \
-	SET_HTTP_GLOBAL("_FILES", load_from_ctx->PG_http_globals, TRACK_VARS_FILES);          \
-	SET_HTTP_REQUEST_GLOBAL(  load_from_ctx->http_request_global); /*set $_REQUEST*/      \
-}                                                                                         \
+static thread_local PhpgoSchedulerContext scheduler_ctx;                                                                                        \
 
 /*null-out our concerned globals to avoid potential problem*/
 #define PHPGO_INITIALIZE_RUNNING_ENVIRONMENT()                     \
@@ -228,8 +216,8 @@ public:
 		if(!ctx) return;
 
 		// running -> sched_ctx and ctx -> running
-		PHPGO_SAVE_CONTEXT(sched_ctx);
-		PHPGO_LOAD_CONTEXT(ctx);
+		sched_ctx->SwapOut();
+		ctx->SwapIn();
 
 		//printf("---------->onSwapIn(%ld) returns<-----------\n", task_id);
 	}
@@ -252,8 +240,8 @@ public:
 		if(!ctx) return;
 		
 		// running -> ctx and sched_ctx -> running
-		PHPGO_SAVE_CONTEXT(ctx);
-		PHPGO_LOAD_CONTEXT(sched_ctx);
+		ctx->SwapOut();
+		sched_ctx->SwapIn();
 		
 		//printf("---------->onSwapOut(%ld) returns<-----------\n", task_id);
 	}

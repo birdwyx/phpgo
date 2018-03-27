@@ -109,9 +109,8 @@ void* phpgo_go(zend_uint argc, zval ***args TSRMLS_DC){
 
 		// get the scheduler context form scheduler_ctx (thread local)
 		PhpgoSchedulerContext* sched_ctx = &scheduler_ctx;
-		PHPGO_SAVE_CONTEXT(sched_ctx);
-		
-		//PHPGO_LOAD_CONTEXT(ctx);
+		sched_ctx->SwapOut();
+
 		PHPGO_INITIALIZE_RUNNING_ENVIRONMENT();
 		
 		EG(current_execute_data) = NULL;
