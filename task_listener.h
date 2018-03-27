@@ -38,7 +38,7 @@ using namespace co;
 	GET_HTTP_GLOBAL("_ENV",    save_to_ctx->PG_http_globals, TRACK_VARS_ENV);        \
 	GET_HTTP_GLOBAL("_FILES",  save_to_ctx->PG_http_globals, TRACK_VARS_FILES);      \
 	GET_HTTP_REQUEST_GLOBAL(   save_to_ctx->http_request_global); /*get $_REQUEST*/  \
-
+                                                                                     \
 	save_to_ctx->EG_current_execute_data  =  EG(current_execute_data    ); \
 	save_to_ctx->EG_argument_stack        =  EG(argument_stack          ); \
 	save_to_ctx->EG_scope                 =  EG(scope                   ); \
