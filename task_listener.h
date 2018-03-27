@@ -69,6 +69,25 @@ using namespace co;
 	EG(user_error_handler   )   =  load_from_ctx->EG_user_error_handler  ; \
 }                                                                          \
 
+/*null-out our concerned globals to avoid potential problem*/
+#define PHPGO_INITIALIZE_RUNNING_ENVIRONMENT()                     \
+{                                                                  \
+	EG(current_execute_data )   =  NULL;                           \
+	EG(argument_stack       )   =  NULL;                           \
+	EG(scope                )   =  NULL;                           \
+	EG(This                 )   =  NULL;                           \
+	EG(called_scope         )   =  NULL;                           \
+	EG(active_symbol_table  )   =  NULL;                           \
+	EG(return_value_ptr_ptr )   =  NULL;                           \
+	EG(active_op_array      )   =  NULL;                           \
+	EG(opline_ptr           )   =  NULL;                           \
+	INIT_ZVAL(EG(error_zval));                                     \
+	EG(error_zval_ptr       )   =  NULL;                           \
+	EG(user_error_handler   )   =  NULL;                           \
+	/*do not do the following as we inherit globals from parent*/  \
+	/*memset(PG(http_globals), 0, sizeof(PG(http_globals)) );*/    \
+}
+
 struct PhpgoBaseContext{
 	TSRMLS_FIELD;     /*ZTS: void ***tsrm_ls;*/         
 	struct _zend_execute_data* EG_current_execute_data; 
