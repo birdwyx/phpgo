@@ -80,13 +80,19 @@ struct PhpgoBaseContext{
 	__PHPGO_CONTEXT_FIELDS__
 };
 
-struct PhpgoContext : public PhpgoBaseContext, public FreeableImpl{};
+struct PhpgoContext : public PhpgoBaseContext, public FreeableImpl{
+public:
+	PhpgoContext(TSRMLS_D){
+		TSRMLS_SET_CTX(this->TSRMLS_C);
+	}
+};
 
 // the Scheduler Context is essentially the same as the Task's context,
 // but since Scheduler Context  is thread local and thread locals cannot
 // have virtual members, we have to remove the FreeableImpl from the
 // Scheduler Context...
 struct PhpgoSchedulerContext : public PhpgoBaseContext{
+public:
 	PhpgoSchedulerContext(){
 		TSRMLS_FETCH();                     // void ***tsrm_ls = (void ***) ts_resource_ex(0, NULL)
 		TSRMLS_SET_CTX(this->TSRMLS_C);     // this->tsrm_ls = (void ***) tsrm_ls

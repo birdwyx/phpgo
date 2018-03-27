@@ -99,17 +99,15 @@ void* phpgo_go(zend_uint argc, zval ***args TSRMLS_DC){
 	VM_STACK_PUSH(go_routine_vm_stack, (unsigned long)argc);
 	
 	go_stack(32*1024) [go_routine_vm_stack TSRMLS_CC] ()mutable {
-		
-		PhpgoContext* ctx = new PhpgoContext(); 
+		//                                   ^^^^
+		// set the tsrm_ls to my prarent, i.e., inherit all globals from my parent
+		PhpgoContext* ctx = new PhpgoContext(TSRMLS_C); 
 		if( !ctx ) return;
 		
 		kls_key_t phpgo_context_key = TaskLocalStorage::CreateKey("PhpgoContext");
 		if( !phpgo_context_key ) return;
 		
 		if( !TaskLocalStorage::SetSpecific(phpgo_context_key, ctx) ) return;
-
-		// set the tsrm_ls to my prarent, i.e., inherit all globals from my parent
-		PHPGO_SAVE_TSRMLS(ctx);
 
 		// get the scheduler context form scheduler_ctx (thread local)
 		PhpgoSchedulerContext* sched_ctx = &scheduler_ctx;
