@@ -21,6 +21,87 @@ using namespace co;
 	#define PHPGO_LOAD_TSRMLS(load_from_ctx)
 #endif
 
+#define NUM_TRACK_VARS	6
+
+struct PhpgoBaseContext{
+	TSRMLS_FIELD;     /*ZTS: void ***tsrm_ls;*/         
+	struct _zend_execute_data* EG_current_execute_data; 
+	zend_vm_stack 			   EG_argument_stack;       
+	zend_class_entry*		   EG_scope;                
+	zval*					   EG_This;                 
+	zend_class_entry*		   EG_called_scope;         
+	HashTable*				   EG_active_symbol_table;  
+	zval**					   EG_return_value_ptr_ptr; 
+	zend_op_array*			   EG_active_op_array;      
+	zend_op**				   EG_opline_ptr;           
+	zval                       EG_error_zval;           
+	zval*                      EG_error_zval_ptr;       
+	zval*                      EG_user_error_handler;   
+	zval*                      PG_http_globals[NUM_TRACK_VARS];
+	zval*                      http_request_global;
+};
+
+struct PhpgoContext : public PhpgoBaseContext, public FreeableImpl{
+public:
+	PhpgoContext(TSRMLS_D){
+		TSRMLS_SET_CTX(this->TSRMLS_C);
+	}
+};
+
+// the Scheduler Context is essentially the same as the Task's context,
+// but since Scheduler Context  is thread local and thread locals cannot
+// have virtual members, we have to remove the FreeableImpl from the
+// Scheduler Context...
+struct PhpgoSchedulerContext : public PhpgoBaseContext{
+public:
+	PhpgoSchedulerContext(){
+		TSRMLS_FETCH();                     // void ***tsrm_ls = (void ***) ts_resource_ex(0, NULL)
+		TSRMLS_SET_CTX(this->TSRMLS_C);     // this->tsrm_ls = (void ***) tsrm_ls
+	}
+};
+
+#define GET_HTTP_GLOBAL(name, http_globals, offset) \
+do{ \
+	zval** ppz_arr = nullptr; \
+	zend_hash_find(&EG(symbol_table), name, sizeof(name), (void**)&ppz_arr); \
+	if(ppz_arr) { \
+		http_globals[offset] = *ppz_arr; \
+		Z_ADDREF_P(*ppz_arr); \
+	}else{ \
+		http_globals[offset] = nullptr; \
+	} \
+}while(0)
+
+#define GET_HTTP_REQUEST_GLOBAL(http_request_global) \
+do{ \
+	zval** ppz_arr = nullptr; \
+	zend_hash_find(&EG(symbol_table), "_REQUEST", sizeof("_REQUEST"), (void**)&ppz_arr); \
+	if(ppz_arr){ \
+		http_request_global = *ppz_arr; \
+		Z_ADDREF_P(*ppz_arr); \
+	}else{ \
+		http_request_global = nullptr; \
+	} \
+}while(0)
+
+#define SET_HTTP_GLOBAL(name, http_globals, offset) \
+do{ \
+	if( http_globals[offset] ) {\
+		zend_hash_update(&EG(symbol_table), name, sizeof(name), http_globals[offset], sizeof(zval *), NULL); \
+	} \
+}while(0)
+
+#define SET_HTTP_REQUEST_GLOBAL(http_request_global) \
+do{ \
+	if( http_request_global ) {\
+		zend_hash_update(&EG(symbol_table), "_REQUEST", sizeof("_REQUEST"), http_request_global, sizeof(zval *), NULL); \
+	} \
+}while(0)
+
+// the scheduler may be executed in multiple thread: 
+// use thread local variable to store the scheduler EG's	
+static thread_local PhpgoSchedulerContext scheduler_ctx;
+
 /*
 * save the current running context to "save_to_ctx"
 * Note: for ZTS: the save_to_ctx->tsrm_ls must already correctly set before 
@@ -104,85 +185,6 @@ using namespace co;
 	/*do not do the following as we inherit globals from parent*/  \
 	/*memset(PG(http_globals), 0, sizeof(PG(http_globals)) );*/    \
 }
-
-#define GET_HTTP_GLOBAL(name, http_globals, offset) \
-do{ \
-	zval** ppz_arr = nullptr; \
-	zend_hash_find(&EG(symbol_table), name, sizeof(name), (void**)&ppz_arr); \
-	if(ppz_arr) { \
-		http_globals[offset] = *ppz_arr; \
-		Z_ADDREF_P(*ppz_arr); \
-	}else{ \
-		http_globals[offset] = nullptr; \
-	} \
-}while(0)
-
-#define GET_HTTP_REQUEST_GLOBAL(http_request_global) \
-do{ \
-	zval** ppz_arr = nullptr; \
-	zend_hash_find(&EG(symbol_table), "_REQUEST", sizeof("_REQUEST"), (void**)&ppz_arr); \
-	if(ppz_arr){ \
-		http_request_global = *ppz_arr; \
-		Z_ADDREF_P(*ppz_arr); \
-	}else{ \
-		http_request_global = nullptr; \
-	} \
-}while(0)
-
-#define SET_HTTP_GLOBAL(name, http_globals, offset) \
-do{ \
-	if( http_globals[offset] ) {\
-		zend_hash_update(&EG(symbol_table), name, sizeof(name), http_globals[offset], sizeof(zval *), NULL); \
-	} \
-}while(0)
-
-#define SET_HTTP_REQUEST_GLOBAL(http_request_global) \
-do{ \
-	if( http_request_global ) {\
-		zend_hash_update(&EG(symbol_table), "_REQUEST", sizeof("_REQUEST"), http_request_global, sizeof(zval *), NULL); \
-	} \
-}while(0)
-
-struct PhpgoBaseContext{
-	TSRMLS_FIELD;     /*ZTS: void ***tsrm_ls;*/         
-	struct _zend_execute_data* EG_current_execute_data; 
-	zend_vm_stack 			   EG_argument_stack;       
-	zend_class_entry*		   EG_scope;                
-	zval*					   EG_This;                 
-	zend_class_entry*		   EG_called_scope;         
-	HashTable*				   EG_active_symbol_table;  
-	zval**					   EG_return_value_ptr_ptr; 
-	zend_op_array*			   EG_active_op_array;      
-	zend_op**				   EG_opline_ptr;           
-	zval                       EG_error_zval;           
-	zval*                      EG_error_zval_ptr;       
-	zval*                      EG_user_error_handler;   
-	zval*                      PG_http_globals[NUM_TRACK_VARS];
-	zval*                      http_request_global;
-};
-
-struct PhpgoContext : public PhpgoBaseContext, public FreeableImpl{
-public:
-	PhpgoContext(TSRMLS_D){
-		TSRMLS_SET_CTX(this->TSRMLS_C);
-	}
-};
-
-// the Scheduler Context is essentially the same as the Task's context,
-// but since Scheduler Context  is thread local and thread locals cannot
-// have virtual members, we have to remove the FreeableImpl from the
-// Scheduler Context...
-struct PhpgoSchedulerContext : public PhpgoBaseContext{
-public:
-	PhpgoSchedulerContext(){
-		TSRMLS_FETCH();                     // void ***tsrm_ls = (void ***) ts_resource_ex(0, NULL)
-		TSRMLS_SET_CTX(this->TSRMLS_C);     // this->tsrm_ls = (void ***) tsrm_ls
-	}
-};
-
-// the scheduler may be executed in multiple thread: 
-// use thread local variable to store the scheduler EG's	
-static thread_local PhpgoSchedulerContext scheduler_ctx;
 	
 class PhpgoTaskListener : public Scheduler::TaskListener{
 	
