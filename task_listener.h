@@ -43,7 +43,7 @@ using namespace co;
 	save_to_ctx->EG_error_zval            =  EG(error_zval              ); \
 	save_to_ctx->EG_error_zval_ptr        =  EG(error_zval_ptr          ); \
 	save_to_ctx->EG_user_error_handler    =  EG(user_error_handler      ); \
-}
+}                                                                          \
 
 /*                                                                                   
 * load the "load_from_ctx" into running environment                                  
@@ -51,6 +51,7 @@ using namespace co;
 * calling the PHPGO_LOAD_CONTEXT()                                                   
 */ 
 #define PHPGO_LOAD_CONTEXT(load_from_ctx)                                  \
+{                                                                          \
 	TSRMLS_FIELD;                                                          \
 	/* load EG from the task specific context*/                            \
 	PHPGO_LOAD_TSRMLS(load_from_ctx);                                      \
@@ -66,7 +67,7 @@ using namespace co;
 	EG(error_zval           )   =  load_from_ctx->EG_error_zval          ; \
 	EG(error_zval_ptr       )   =  load_from_ctx->EG_error_zval_ptr      ; \
 	EG(user_error_handler   )   =  load_from_ctx->EG_user_error_handler  ; \
-}
+}                                                                          \
 
 struct PhpgoBaseContext{
 	TSRMLS_FIELD;     /*ZTS: void ***tsrm_ls;*/         
