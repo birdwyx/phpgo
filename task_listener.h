@@ -22,12 +22,11 @@ using namespace co;
 #endif
 
 /*
-* save the current running context to "save_to_ctx" , and load the "load_from_ctx" 
-* into running environment
-* Note: for ZTS: the save_to_ctx->tsrm_ls and load_from_ctx->trsm_ls must already
-* correctly set before calling the PHPGO_SWAP_CONTEXT()
+* save the current running context to "save_to_ctx"
+* Note: for ZTS: the save_to_ctx->tsrm_ls must already correctly set before 
+* calling the PHPGO_SAVE_CONTEXT()
 */
-#define PHPGO_SWAP_CONTEXT(save_to_ctx, load_from_ctx)                     \
+#define PHPGO_SAVE_CONTEXT(save_to_ctx)                                    \
 {                                                                          \
     TSRMLS_FIELD;                                                          \
 	/* save the current EG  */                                             \
@@ -44,7 +43,15 @@ using namespace co;
 	save_to_ctx->EG_error_zval            =  EG(error_zval              ); \
 	save_to_ctx->EG_error_zval_ptr        =  EG(error_zval_ptr          ); \
 	save_to_ctx->EG_user_error_handler    =  EG(user_error_handler      ); \
-	                                                                       \
+}
+
+/*                                                                                   
+* load the "load_from_ctx" into running environment                                  
+* Note: for ZTS: load_from_ctx->trsm_ls must already correctly set before            
+* calling the PHPGO_LOAD_CONTEXT()                                                   
+*/ 
+#define PHPGO_LOAD_CONTEXT(load_from_ctx)                                  \
+	TSRMLS_FIELD;                                                          \
 	/* load EG from the task specific context*/                            \
 	PHPGO_LOAD_TSRMLS(load_from_ctx);                                      \
 	EG(current_execute_data )   =  load_from_ctx->EG_current_execute_data; \
@@ -59,7 +66,7 @@ using namespace co;
 	EG(error_zval           )   =  load_from_ctx->EG_error_zval          ; \
 	EG(error_zval_ptr       )   =  load_from_ctx->EG_error_zval_ptr      ; \
 	EG(user_error_handler   )   =  load_from_ctx->EG_user_error_handler  ; \
-}                                                                          \
+}
 
 struct PhpgoBaseContext{
 	TSRMLS_FIELD;     /*ZTS: void ***tsrm_ls;*/         
@@ -144,7 +151,8 @@ public:
 		}
 		
 		// running -> sched_ctx and ctx -> running
-		PHPGO_SWAP_CONTEXT(sched_ctx, ctx);
+		PHPGO_SAVE_CONTEXT(sched_ctx);
+		PHPGO_LOAD_CONTEXT(ctx);
 
 		//printf("---------->onSwapIn(%ld) returns<-----------\n", task_id);
 	}
@@ -167,7 +175,8 @@ public:
 		if(!ctx) return;
 		
 		// running -> ctx and sched_ctx -> running
-		PHPGO_SWAP_CONTEXT(ctx, sched_ctx);
+		PHPGO_SAVE_CONTEXT(ctx);
+		PHPGO_LOAD_CONTEXT(sched_ctx);
 		
 		//printf("---------->onSwapOut(%ld) returns<-----------\n", task_id);
 	}
