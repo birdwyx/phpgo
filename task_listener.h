@@ -44,7 +44,7 @@ using namespace co;
 */
 #define PHPGO_SWAP_CONTEXT(save_to_ctx, load_from_ctx)                     \
 {                                                                          \
-    TSRMLS_D;                                                              \
+    TSRMLS_FIELD;                                                          \
 	/* save the current EG  */                                             \
 	PHPGO_LOAD_TSRMLS(save_to_ctx);                                        \
 	save_to_ctx->EG_current_execute_data  =  EG(current_execute_data    ); \
@@ -86,7 +86,12 @@ struct PhpgoContext : public PhpgoBaseContext, public FreeableImpl{};
 // but since Scheduler Context  is thread local and thread locals cannot
 // have virtual members, we have to remove the FreeableImpl from the
 // Scheduler Context...
-struct PhpgoSchedulerContext : public PhpgoBaseContext{};
+struct PhpgoSchedulerContext : public PhpgoBaseContext{
+	PhpgoSchedulerContext(){
+		TSRMLS_FETCH();                     // void ***tsrm_ls = (void ***) ts_resource_ex(0, NULL)
+		TSRMLS_SET_CTX(this->TSRMLS_C);     // this->tsrm_ls = (void ***) tsrm_ls
+	}
+};
 
 // the scheduler may be executed in multiple thread: 
 // use thread local variable to store the scheduler EG's	
@@ -126,19 +131,6 @@ public:
 		}
 
 		PhpgoSchedulerContext* sched_ctx    =  &scheduler_ctx; /*scheduler_ctx is thread local*/
-	#ifdef ZTS
-		/*
-		* for optimal performance:
-		* cache the tsrm_ls for this scheduler thread into this scheduler context
-		* so that we don't need to fetch from the operating system tls every time.
-		*/
-		if( UNEXPECTED(!sched_ctx->TSRMLS_C) ){
-			//this is the first time this scheduler to run, 
-			//fetch and store the thread specific tsrm_ls to local context
-			TSRMLS_FETCH();                          // void ***tsrm_ls = (void ***) ts_resource_ex(0, NULL)
-			TSRMLS_SET_CTX(sched_ctx->TSRMLS_C);     // sched_ctx->tsrm_ls = (void ***) tsrm_ls
-		}
-	#endif
 
 		PhpgoContext* ctx;
 		if( !( ctx = (PhpgoContext*)TaskLocalStorage::GetSpecific(phpgo_context_key) ) ){
