@@ -28,10 +28,10 @@ do{ \
 	zval** ppz_arr = nullptr; \
 	zend_hash_find(&EG(symbol_table), name, sizeof(name), (void**)&ppz_arr); \
 	if(ppz_arr) { \
-		http_globals[offset] = *ppz_arr; \
+		(http_globals)[offset] = *ppz_arr; \
 		Z_ADDREF_P(*ppz_arr); \
 	}else{ \
-		http_globals[offset] = nullptr; \
+		(http_globals)[offset] = nullptr; \
 	} \
 }while(0)
 
@@ -50,14 +50,14 @@ do{ \
 #define SET_HTTP_GLOBAL(name, http_globals, offset) \
 do{ \
 	if( http_globals[offset] ) {\
-		zend_hash_update(&EG(symbol_table), name, sizeof(name), http_globals[offset], sizeof(zval *), NULL); \
+		zend_hash_update(&EG(symbol_table), name, sizeof(name), &(http_globals[offset]), sizeof(zval *), NULL); \
 	} \
 }while(0)
 
 #define SET_HTTP_REQUEST_GLOBAL(http_request_global) \
 do{ \
 	if( http_request_global ) {\
-		zend_hash_update(&EG(symbol_table), "_REQUEST", sizeof("_REQUEST"), http_request_global, sizeof(zval *), NULL); \
+		zend_hash_update(&EG(symbol_table), "_REQUEST", sizeof("_REQUEST"), &http_request_global, sizeof(zval *), NULL); \
 	} \
 }while(0)
 
@@ -79,17 +79,18 @@ struct PhpgoBaseContext{
 	zval*                      http_request_global;
 public:
 	inline void SwapOut(){
-		TSRMLS_FIELD;                                                          
+		TSRMLS_FIELD;           
+		
 		/* save the current EG  */                                             
 		PHPGO_LOAD_TSRMLS(this);                                        
-		GET_HTTP_GLOBAL("_GET",    this->PG_http_globals, TRACK_VARS_GET);        
+		GET_HTTP_GLOBAL("_GET",    this->PG_http_globals, TRACK_VARS_GET);  
 		GET_HTTP_GLOBAL("_POST",   this->PG_http_globals, TRACK_VARS_POST);       
 		GET_HTTP_GLOBAL("_COOKIE", this->PG_http_globals, TRACK_VARS_COOKIE);     
 		GET_HTTP_GLOBAL("_SERVER", this->PG_http_globals, TRACK_VARS_SERVER);     
 		GET_HTTP_GLOBAL("_ENV",    this->PG_http_globals, TRACK_VARS_ENV);        
 		GET_HTTP_GLOBAL("_FILES",  this->PG_http_globals, TRACK_VARS_FILES);      
 		GET_HTTP_REQUEST_GLOBAL(   this->http_request_global); /*get $_REQUEST*/  
-																						
+
 		this->EG_current_execute_data  =  EG(current_execute_data    ); 
 		this->EG_argument_stack        =  EG(argument_stack          ); 
 		this->EG_scope                 =  EG(scope                   ); 
@@ -105,7 +106,8 @@ public:
 	}
 
 	inline void SwapIn(){
-		TSRMLS_FIELD;                                                          
+		TSRMLS_FIELD;                            
+		
 		/* load EG from the task specific context*/                            
 		PHPGO_LOAD_TSRMLS(this);                                      
 		EG(current_execute_data )   =  this->EG_current_execute_data; 
@@ -120,15 +122,15 @@ public:
 		EG(error_zval           )   =  this->EG_error_zval          ; 
 		EG(error_zval_ptr       )   =  this->EG_error_zval_ptr      ; 
 		EG(user_error_handler   )   =  this->EG_user_error_handler  ; 
-		memcpy( PG(http_globals), this->PG_http_globals, sizeof(PG(http_globals)) ); 
-																							
+		memcpy( PG(http_globals), this->PG_http_globals, sizeof(PG(http_globals)) ); 	
+
 		SET_HTTP_GLOBAL("_GET",   this->PG_http_globals, TRACK_VARS_GET);            
 		SET_HTTP_GLOBAL("_POST",  this->PG_http_globals, TRACK_VARS_POST);           
 		SET_HTTP_GLOBAL("_COOKIE",this->PG_http_globals, TRACK_VARS_COOKIE);         
 		SET_HTTP_GLOBAL("_SERVER",this->PG_http_globals, TRACK_VARS_SERVER);         
 		SET_HTTP_GLOBAL("_ENV",   this->PG_http_globals, TRACK_VARS_ENV);            
 		SET_HTTP_GLOBAL("_FILES", this->PG_http_globals, TRACK_VARS_FILES);          
-		SET_HTTP_REQUEST_GLOBAL(  this->http_request_global); /*set $_REQUEST*/      
+		SET_HTTP_REQUEST_GLOBAL(  this->http_request_global); /*set $_REQUEST*/     
 	}
 };
 
