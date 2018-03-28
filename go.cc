@@ -98,8 +98,14 @@ void* phpgo_go(zend_uint argc, zval ***args TSRMLS_DC){
 	}
 	VM_STACK_PUSH(go_routine_vm_stack, (unsigned long)argc);
 	
-	go_stack(32*1024) [go_routine_vm_stack TSRMLS_CC] ()mutable {
-		//                                   ^^^^
+	/*Make a temporary context and save the current running environment into it
+	and then pass this context to the new creating go routine, so that the http
+	globals can be inherited */
+	PhpgoContext* parent_ctx = new PhpgoContext(TSRMLS_C);
+	parent_ctx->SwapOut();
+
+	go_stack(32*1024) [go_routine_vm_stack, parent_ctx TSRMLS_CC] ()mutable {
+		//                                               ^^^^
 		// set the tsrm_ls to my prarent, i.e., inherit all globals from my parent
 		PhpgoContext* ctx = new PhpgoContext(TSRMLS_C); 
 		if( !ctx ) return;
@@ -107,13 +113,21 @@ void* phpgo_go(zend_uint argc, zval ***args TSRMLS_DC){
 		if( !phpgo_context_key ) return;
 		if( !TaskLocalStorage::SetSpecific(phpgo_context_key, ctx) ) return;
 
+		// we are just brought up by the scheduler, and we are now running under the
+		// scheduler's context. Before we are going to run, we need to save the running
+		// environemt into the scheduler's and load our own (which is inherited from
+		// our parent)
+		//
 		// get the scheduler context form scheduler_ctx (thread local)
+		// and save the current running environment to it
 		PhpgoSchedulerContext* sched_ctx = &scheduler_ctx;
 		sched_ctx->SwapOut();
 
+		// load the running environment from the tmp_ctx (inherited from parent),
+		// and then clear the fileds that we don't want:
+		parent_ctx->SwapIn();  
 		PHPGO_INITIALIZE_RUNNING_ENVIRONMENT();
 		
-		EG(current_execute_data) = NULL;
 		//set the argument stack to the dedicate stack
 		EG(argument_stack) = go_routine_vm_stack;
 		
