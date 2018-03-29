@@ -757,7 +757,7 @@ PHP_FUNCTION(goo)
 	
 	int argc = ZEND_NUM_ARGS();
 	if(argc < 2){
-		zend_error(E_ERROR, "phpgo: goo(): at least 2 prameters require");
+		zend_error(E_ERROR, "phpgo: goo(): at least 2 parameters required");
         RETURN_FALSE;
 	}
 	
