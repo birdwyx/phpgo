@@ -78,7 +78,7 @@ void dump_zval(zval* zv){
       from thread local 
    3. ...
 */
-void* phpgo_go(zend_uint argc, zval ***args TSRMLS_DC){
+void* phpgo_go(uint64_t go_routine_options, uint32_t stack_size, zend_uint argc, zval ***args TSRMLS_DC){
 	
 	#define GR_VM_STACK_PAGE_SIZE (256)   // 256 zval* = 2048 byte
 	#define VM_STACK_PUSH(stack, v)  do { *((stack)->top++) = (void*)(v); } while(0)
@@ -86,6 +86,7 @@ void* phpgo_go(zend_uint argc, zval ***args TSRMLS_DC){
 	
 	//allocate a new stack for the go routine
 	zend_vm_stack go_routine_vm_stack = zend_vm_stack_new_page( argc > GR_VM_STACK_PAGE_SIZE ? argc : GR_VM_STACK_PAGE_SIZE );
+	if(!go_routine_vm_stack) return nullptr;
 	
 	//set a stack start magic 0xdeaddeaddeaddead in stack bottom
 	VM_STACK_PUSH(go_routine_vm_stack, 0xdeaddeaddeaddead);
@@ -101,17 +102,46 @@ void* phpgo_go(zend_uint argc, zval ***args TSRMLS_DC){
 	/*Make a temporary context and save the current running environment into it
 	and then pass this context to the new creating go routine, so that the http
 	globals can be inherited */
-	PhpgoContext* parent_ctx = new PhpgoContext(TSRMLS_C);
-	parent_ctx->SwapOut();
+	PhpgoContext* parent_ctx = new PhpgoContext(GoRoutineOptions::gro_default TSRMLS_CC);
+	if(!parent_ctx){
+		efree(go_routine_vm_stack);
+		return nullptr;
+	}
+	bool include_http_globals = go_routine_options & GoRoutineOptions::gro_isolate_http_globals;
+	parent_ctx->SwapOut(include_http_globals);
+	
+	if( !stack_size ) {
+		stack_size = 1024 * 1024;  /*default to 1M*/
+	}
+	else if( stack_size < 32*1024 ){
+		stack_size = 32*1024;      /*at least 32K stack, if size provided*/
+	}
+		
+	auto tk = go_stack(stack_size) [go_routine_vm_stack, go_routine_options, parent_ctx TSRMLS_CC] ()mutable {
+		defer{
+			delete parent_ctx;
+			
+			if(!EG(argument_stack)){
+				//zend_vm_stack_destroy requires EG(argument_stack) be set
+				EG(argument_stack) = go_routine_vm_stack; 
+			}
+			zend_vm_stack_destroy(TSRMLS_C);
+		};
 
-	go_stack(32*1024) [go_routine_vm_stack, parent_ctx TSRMLS_CC] ()mutable {
-		//                                               ^^^^
 		// set the tsrm_ls to my prarent, i.e., inherit all globals from my parent
-		PhpgoContext* ctx = new PhpgoContext(TSRMLS_C); 
+		PhpgoContext* ctx = new PhpgoContext(go_routine_options TSRMLS_CC); 
 		if( !ctx ) return;
+		
 		kls_key_t phpgo_context_key = TaskLocalStorage::CreateKey("PhpgoContext");
-		if( !phpgo_context_key ) return;
-		if( !TaskLocalStorage::SetSpecific(phpgo_context_key, ctx) ) return;
+		if( !phpgo_context_key ) {
+			delete ctx;
+			return;
+		}
+		
+		if( !TaskLocalStorage::SetSpecific(phpgo_context_key, ctx) ) {
+			delete ctx;
+			return;
+		}
 
 		// we are just brought up by the scheduler, and we are now running under the
 		// scheduler's context. Before we are going to run, we need to save the running
@@ -120,12 +150,13 @@ void* phpgo_go(zend_uint argc, zval ***args TSRMLS_DC){
 		//
 		// get the scheduler context form scheduler_ctx (thread local)
 		// and save the current running environment to it
+		bool include_http_globals = ctx->go_routine_options & GoRoutineOptions::gro_isolate_http_globals;
 		PhpgoSchedulerContext* sched_ctx = &scheduler_ctx;
-		sched_ctx->SwapOut();
+		sched_ctx->SwapOut(include_http_globals);
 
-		// load the running environment from the tmp_ctx (inherited from parent),
+		// load the running environment from the parent_ctx (inherited from parent),
 		// and then clear the fileds that we don't want:
-		parent_ctx->SwapIn();  
+		parent_ctx->SwapIn(include_http_globals);  
 		PHPGO_INITIALIZE_RUNNING_ENVIRONMENT();
 		
 		//set the argument stack to the dedicate stack
@@ -133,34 +164,29 @@ void* phpgo_go(zend_uint argc, zval ***args TSRMLS_DC){
 		
 		char *func_name                  = NULL; 
 		char *error                      = NULL;
-		zend_fcall_info_cache *fci_cache = (zend_fcall_info_cache*)emalloc(sizeof(zend_fcall_info_cache));
+		zend_fcall_info_cache *fci_cache = NULL;
+		zval* return_value               = NULL;
 		zend_uint argc                   = VM_STACK_NUM_ARGS();
-		zval*** args                     = (zval ***)safe_emalloc(argc, sizeof(zval **), 0);
-		
-		if(!fci_cache) return;
-		if(!args) return;
-		
-		zval* return_value = NULL;
-		MAKE_STD_ZVAL(return_value);
+		zval*** args                     = NULL;
 		
 		defer{
-			if(func_name) 	efree(func_name);
-			if(error)       efree(error);
-			
-			efree(fci_cache);
-			
-			//we've add-ref'ed to the callback & parameters outside this go routine, so
-			//after complete using the callback, decrease the reference to them
-			for(zend_uint i = 0; i < argc; i++ ){
-				zval_ptr_dtor(args[i]);
-			}
-			efree(args);
-			
+			if(func_name) 	 efree(func_name);
+			if(error)        efree(error);
+			if(fci_cache)    efree(fci_cache);
 			if(return_value) zval_ptr_dtor(&return_value);
 			
-			//free the vm stack since this go routine is going to destroy
-			zend_vm_stack_destroy(TSRMLS_C);
+			if(args){
+				//we've add-ref'ed to the callback & parameters outside this go routine, so
+				//after complete using the callback, decrease the reference to them
+				for(zend_uint i = 0; i < argc; i++ ){
+					zval_ptr_dtor(args[i]);
+				}
+				efree(args);
+			}
 		};
+
+		args = (zval ***)safe_emalloc(argc, sizeof(zval **), 0);
+		if(!args) return;
 		
 		if (zend_get_parameters_array_ex(argc, args) == FAILURE) {
 			zend_error(E_ERROR, "phpgo: getting go routine parameters faild");
@@ -169,8 +195,11 @@ void* phpgo_go(zend_uint argc, zval ***args TSRMLS_DC){
 		
 		/* go (callable $callback, callback_arg1, callback_arg2...), then
 		/* args[0] == $callback, args[1..n] = callback_arg1, ...callback_argn*/
-
-		if (!zend_is_callable_ex(*args[0], NULL, IS_CALLABLE_CHECK_SILENT, &func_name, NULL, fci_cache, &error TSRMLS_CC)) {
+		
+		fci_cache = (zend_fcall_info_cache*)emalloc(sizeof(zend_fcall_info_cache));
+		if(!fci_cache) return;
+		
+		if(!zend_is_callable_ex(*args[0], NULL, IS_CALLABLE_CHECK_SILENT, &func_name, NULL, fci_cache, &error TSRMLS_CC)) {
 			if (error) {
 				zend_error(E_WARNING, "phpgo: invalid callback %s, %s", func_name, error);
 			}
@@ -184,6 +213,7 @@ void* phpgo_go(zend_uint argc, zval ***args TSRMLS_DC){
 			}
 		}
 		
+		MAKE_STD_ZVAL(return_value);
 		if( call_user_function_ex(
 			EG(function_table), 
 			NULL, 
@@ -198,6 +228,8 @@ void* phpgo_go(zend_uint argc, zval ***args TSRMLS_DC){
 			return;
 		}
 	};
+	
+	return tk;
 }
 
 /*

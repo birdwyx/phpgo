@@ -100,6 +100,7 @@ ZEND_END_ARG_INFO()
 const zend_function_entry phpgo_functions[] = {
 	//PHP_FE(confirm_phpgo_compiled,	NULL)		/* For testing, remove later. */
 	PHP_FE(go, NULL)
+	PHP_FE(goo, NULL)
 	PHP_FE(go_debug, NULL)
 	//ZEND_NS_NAMED_FE(PHPGO_NS, go_debug, ZEND_FN(go_go_debug), NULL)
 	
@@ -721,26 +722,88 @@ PHP_FUNCTION(go)
         RETURN_FALSE;
 	}
 	
-    zval ***args = (zval ***)safe_emalloc(argc, sizeof(zval **), 0);
+    zval ***args = NULL;
+	defer{
+		if(args) efree(args);
+	};
+	args = (zval ***)safe_emalloc(argc, sizeof(zval **), 0);
     if ( zend_get_parameters_array_ex(argc, args) == FAILURE) {
-        efree(args);
 		zend_error(E_ERROR, "phpgo: go(): error getting parameters");
         RETURN_FALSE;
     }
 
     char *func_name = NULL;
-    if (!zend_is_callable(*args[0], 0, &func_name TSRMLS_CC))
-    {
+	defer{
+		if(func_name) efree(func_name);
+	};
+    if (!zend_is_callable(*args[0], 0, &func_name TSRMLS_CC)){
         php_error_docref(NULL TSRMLS_CC,E_ERROR, "phpgo: go(): function '%s' is not callable", func_name);
-        efree(func_name);
-		efree(args);
         RETURN_FALSE;
     }
-    efree(func_name);
 	
-	void* co = phpgo_go( argc, args TSRMLS_CC);
+	void* co = phpgo_go( GoRoutineOptions::gro_default, 0/*stack_size*/, argc, args TSRMLS_CC);
 	
-	efree(args);
+	RETURN_LONG( (long)co );
+}
+
+/* {{{ proto int go( callable $func )
+   run the $func as go routine in the current thread context, and 
+   do not wait for the function complete
+   Return true */
+PHP_FUNCTION(goo)
+{
+	bool isolate_http_globals = false;
+	uint32_t stack_size = 0;
+	
+	int argc = ZEND_NUM_ARGS();
+	if(argc < 2){
+		zend_error(E_ERROR, "phpgo: goo(): at least 2 prameters require");
+        RETURN_FALSE;
+	}
+	
+    zval ***args = NULL;
+	defer{
+		if(args) efree(args);
+	};
+    args = (zval ***)safe_emalloc(argc, sizeof(zval **), 0);
+    if ( zend_get_parameters_array_ex(argc, args) == FAILURE) {
+		zend_error(E_ERROR, "phpgo: goo(): error getting parameters");
+        RETURN_FALSE;
+    }
+	
+	zval* arr_optoins = *args[0];
+	if( Z_TYPE_P(arr_optoins) != IS_ARRAY ){
+		zend_error(E_ERROR, "phpgo: goo(): options must be array");
+        RETURN_FALSE;
+	}
+	
+	zval** ppz = NULL;
+	if( zend_hash_find(HASH_OF(arr_optoins), "stack_size", sizeof("stack_size"), (void**)&ppz) == SUCCESS ){
+		zval var = **ppz;
+		zval_copy_ctor(&var);
+		convert_to_long(&var);
+		stack_size = Z_LVAL(var);
+	}
+	
+	if( zend_hash_find(HASH_OF(arr_optoins), "isolate_http_globals", sizeof("isolate_http_globals"), (void**)&ppz) == SUCCESS ){
+		zval var = **ppz;
+		zval_copy_ctor(&var);
+		convert_to_boolean(&var);
+		isolate_http_globals = Z_BVAL(var);
+	}
+
+    char *func_name = NULL;
+	defer{
+		if(func_name) efree(func_name);
+	};
+    if (!zend_is_callable(*args[1], 0, &func_name TSRMLS_CC)){
+        php_error_docref(NULL TSRMLS_CC,E_ERROR, "phpgo: go(): function '%s' is not callable", func_name);
+        RETURN_FALSE;
+    }
+
+	uint64_t options = isolate_http_globals ? GoRoutineOptions::gro_isolate_http_globals : GoRoutineOptions::gro_default;
+	void* co = phpgo_go( options, stack_size, argc - 1, &args[1] TSRMLS_CC);
+	
 	RETURN_LONG( (long)co );
 }
 
