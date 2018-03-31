@@ -7,6 +7,9 @@
 #include <libgo/freeable.h>
 #include <libgo/task_local_storage.h>
 #include <iostream>
+#ifdef ZTS
+#include <boost/thread.hpp>
+#endif
 #include "task_listener.h"
 
 using namespace std;
