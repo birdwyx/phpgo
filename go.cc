@@ -7,7 +7,6 @@
 #include <libgo/freeable.h>
 #include <libgo/task_local_storage.h>
 #include <iostream>
-#include <boost/thread.hpp>
 #include "task_listener.h"
 
 using namespace std;

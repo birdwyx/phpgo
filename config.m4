@@ -66,7 +66,7 @@ if test "$PHP_PHPGO" != "no"; then
   PHP_REQUIRE_CXX()
   PHP_ADD_LIBRARY(libgo, 1, PHPGO_SHARED_LIBADD)
   dnl PHP_ADD_LIBRARY(libdl, 1, PHPGO_SHARED_LIBADD)
-  PHP_ADD_LIBRARY(boost_thread, 1, PHPGO_SHARED_LIBADD)
+  dnl PHP_ADD_LIBRARY(boost_thread, 1, PHPGO_SHARED_LIBADD)
   PHP_ADD_LIBRARY(stdc++, 1, PHPGO_SHARED_LIBADD)
   PHP_NEW_EXTENSION(phpgo, phpgo.cc go.cc go_chan.cc go_runtime.cc go_timer.cc go_select.cc zend_variables_persist.cc, $ext_shared)
 fi
