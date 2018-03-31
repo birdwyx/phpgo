@@ -189,7 +189,7 @@ void* phpgo_go(uint64_t go_routine_options, uint32_t stack_size, zend_uint argc,
 		if(!args) return;
 		
 		if (zend_get_parameters_array_ex(argc, args) == FAILURE) {
-			zend_error(E_ERROR, "phpgo: getting go routine parameters faild");
+			zend_error(E_ERROR, "phpgo: getting go routine parameters failed");
 			return;
 		}
 		
