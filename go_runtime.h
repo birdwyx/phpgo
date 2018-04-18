@@ -9,5 +9,6 @@
 #endif
 
 uint64_t phpgo_go_runtime_num_goroutine();
-void phpgo_go_runtime_gosched();
+void     phpgo_go_runtime_gosched();
+uint64_t phpgo_go_runtime_goid();
 

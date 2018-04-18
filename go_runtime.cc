@@ -3,6 +3,10 @@
 */
 #include "go_runtime.h"
 
+uint64_t phpgo_go_runtime_goid(){
+	return co_sched.GetCurrentTaskID();
+}
+
 uint64_t phpgo_go_runtime_num_goroutine(){
 	return co_sched.TaskCount();
 }

@@ -62,6 +62,7 @@ PHP_METHOD(Scheduler, RunForever);
 
 PHP_METHOD(Runtime,   NumGoroutine);
 PHP_METHOD(Runtime,   Gosched);
+PHP_METHOD(Runtime,   Goid);
 
 PHP_METHOD(Chan,      __construct);
 PHP_METHOD(Chan,      Push);

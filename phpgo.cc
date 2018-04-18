@@ -170,6 +170,7 @@ const zend_function_entry go_timer_methods[] = {
 const zend_function_entry go_runtime_methods[] = {
 	PHP_ME(Runtime,        NumGoroutine, NULL,                     ZEND_ACC_PUBLIC|ZEND_ACC_STATIC)
 	PHP_ME(Runtime,        Gosched,      NULL,                     ZEND_ACC_PUBLIC|ZEND_ACC_STATIC)
+	PHP_ME(Runtime,        Goid,         NULL,                     ZEND_ACC_PUBLIC|ZEND_ACC_STATIC)
 	PHP_FE_END	/* Must be the last line */
 };
 /* }}} */
@@ -1405,6 +1406,14 @@ PHP_METHOD(Runtime, NumGoroutine)
 PHP_METHOD(Runtime, Gosched)
 {
 	phpgo_go_runtime_gosched();
+}
+/* }}} */
+
+/* {{{ proto void go_schedule_forever(void)
+   loop running the secheduler forever*/
+PHP_METHOD(Runtime, Goid)
+{
+	RETURN_LONG( phpgo_go_runtime_goid() );
 }
 /* }}} */
 
