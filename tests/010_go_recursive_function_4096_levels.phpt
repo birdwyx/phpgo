@@ -1,5 +1,5 @@
 --TEST--
-Go recursive function with 4096 nested levels
+Go recursive function with 4096 nested levels (deemed to be FAIL)
 
 --FILE--
 <?php

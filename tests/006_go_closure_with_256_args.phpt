@@ -1,5 +1,5 @@
 --TEST--
-Go closure with 256 args
+Go closure with 256 args (deemed to be FAIL)
 
 --FILE--
 <?php
