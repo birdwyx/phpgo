@@ -1,5 +1,5 @@
 --TEST--
-Test Goid
+Go Goid
 
 --SKIPIF--
 
