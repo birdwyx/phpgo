@@ -34,6 +34,11 @@ $pass='Baipeng2016';
 $dsn="mysql:host=10.116.71.188;dbname=test";
 
 $db = new PDO($dsn, $user, $pass);
+
+$db->exec("delete from test where id = 1 or id = 2" );
+$db->exec("insert into test(id, str) values(1, 'aaa') " );
+$db->exec("insert into test(id, str) values(2, 'bbb') " );
+
 $succ1 =  false;
 go(function() use($db, &$succ1){
 	for($i=0; $i<1000; $i++){
@@ -74,6 +79,8 @@ go(function() use($db, &$succ2){
 });
 
 Scheduler::join();
+
+$db->exec("delete from test where id = 1 or id = 2" );
 
 if($succ1 && $succ2) 
 	echo "success\n";
