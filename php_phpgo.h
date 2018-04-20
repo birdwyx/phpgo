@@ -56,9 +56,9 @@ PHP_FUNCTION(select);
 PHP_FUNCTION(_case);
 PHP_FUNCTION(_default);
 
-PHP_METHOD(Scheduler, RunOnce);
-PHP_METHOD(Scheduler, RunJoinAll);
-PHP_METHOD(Scheduler, RunForever);
+PHP_METHOD(Scheduler, Run);
+PHP_METHOD(Scheduler, Join);
+PHP_METHOD(Scheduler, Loop);
 
 PHP_METHOD(Runtime,   NumGoroutine);
 PHP_METHOD(Runtime,   Gosched);

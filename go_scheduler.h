@@ -7,25 +7,25 @@
 
 class GoScheduler{
 public:
-	static uint32_t RunOnce(){
+	static uint32_t Run(){
 		if (co_sched.IsCoroutine()) {
-			zend_error(E_ERROR, "phpgo: error: RunOnce must be called outside a go routine\n");
+			zend_error(E_ERROR, "phpgo: error: run must be called outside a go routine\n");
 			return 0;
 		}
 		return co_sched.Run();
 	}
 	
-	static void RunJoinAll(uint32_t tasks_left){
+	static void Join(uint32_t tasks_left){
 		if (co_sched.IsCoroutine()) {
-			zend_error(E_ERROR, "phpgo: error: RunJoinAll must be called outside a go routine\n");
+			zend_error(E_ERROR, "phpgo: error: join must be called outside a go routine\n");
 			return;
 		}	
 		co_sched.RunUntilNoTask(tasks_left);
 	}
 	
-	static void RunForever(){
+	static void Loop(){
 		if (co_sched.IsCoroutine()) {
-			zend_error(E_ERROR, "phpgo: error: RunForever must be called outside a go routine\n");
+			zend_error(E_ERROR, "phpgo: error: loop must be called outside a go routine\n");
 			return;
 		}
 		co_sched.RunLoop();

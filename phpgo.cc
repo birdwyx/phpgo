@@ -147,9 +147,9 @@ const zend_function_entry go_wait_group_methods[] = {
 };
 
 const zend_function_entry go_scheduler_methods[] = {
-	PHP_ME(Scheduler,      RunOnce,      NULL,                      ZEND_ACC_PUBLIC|ZEND_ACC_STATIC)
-	PHP_ME(Scheduler,      RunJoinAll,   NULL,                      ZEND_ACC_PUBLIC|ZEND_ACC_STATIC)
-	PHP_ME(Scheduler,      RunForever,   NULL,                      ZEND_ACC_PUBLIC|ZEND_ACC_STATIC)
+	PHP_ME(Scheduler,      Run,          NULL,                      ZEND_ACC_PUBLIC|ZEND_ACC_STATIC)
+	PHP_ME(Scheduler,      Join,         NULL,                      ZEND_ACC_PUBLIC|ZEND_ACC_STATIC)
+	PHP_ME(Scheduler,      Loop,         NULL,                      ZEND_ACC_PUBLIC|ZEND_ACC_STATIC)
 	PHP_FE_END	/* Must be the last line */
 };
 
@@ -326,51 +326,6 @@ PHP_MINFO_FUNCTION(phpgo)
 		RETURN_NULL();
 	}
 	
-	/*
-	if(z3){
-		if( !z1 || Z_TYPE_P(z1) != IS_LONG   || 
-			!z2 || Z_TYPE_P(z2) != IS_STRING ||
-			       Z_TYPE_P(z3) != IS_BOOL 
-		){
-			zend_error(E_ERROR, "phpgo: Chan($capacity, $name, $copy): the 3 parameters must be of type long, string, bool respectively");
-			RETURN_NULL();
-		}
-		copy     = Z_BVAL_P(z3);
-		capacity = Z_LVAL_P(z1);
-		name     = Z_STRVAL_P(z2);
-		name_len = Z_STRLEN_P(z2);
-	}else if(z2){
-		if( !z1 || Z_TYPE_P(z1) != IS_LONG || 
-		           Z_TYPE_P(z2) != IS_STRING
-		){
-			zend_error(E_ERROR, "phpgo: Chan($capacity, $name): the 2 parameters must be of type long, string respectively");
-			RETURN_NULL();
-		}
-		capacity = Z_LVAL_P(z1);
-		name     = Z_STRVAL_P(z2);
-		name_len = Z_STRLEN_P(z2);
-		if( name_len <= 0 ){
-			zend_error(E_ERROR, "phpgo: Chan($capacity, $name): the channel name string, when provided, cannot be empty");
-			RETURN_NULL();
-		}
-	}else if(z1){
-		if( Z_TYPE_P(z1) == IS_LONG ){
-			capacity = Z_LVAL_P(z1);
-		}else if( Z_TYPE_P(z1) == IS_STRING ){
-			name     = Z_STRVAL_P(z1);
-			name_len = Z_STRLEN_P(z1);
-			if( name_len <= 0 ){
-				zend_error(E_ERROR, "phpgo: Chan($capacity | $name): the channel name string, when provided, cannot be empty");
-				RETURN_NULL();
-			}
-		}else{
-			zend_error(E_ERROR, "phpgo: Chan($capacity | $name): the parameter must be either long or string");
-			RETURN_NULL();
-		}
-	}else{
-		// no parameter, use default
-	}*/
-	
 	if( z1 ){
 	    if( Z_TYPE_P(z1) == IS_LONG ){
 			capacity = Z_LVAL_P(z1);
@@ -422,8 +377,8 @@ PHP_MINFO_FUNCTION(phpgo)
  }
  /* }}} */
  
-  /* {{{ proto Chan::__construct
-  * Create a go channel object
+  /* {{{ proto Chan::push
+  * Push object to channel, block if channel not available to write
   */
  PHP_METHOD(Chan,Push){
 	 
@@ -433,7 +388,7 @@ PHP_MINFO_FUNCTION(phpgo)
 	zval* z        = NULL;
 	
 	if( zend_parse_parameters(ZEND_NUM_ARGS() TSRMLS_CC, "z", &z) == FAILURE ){
-        zend_error(E_ERROR, "phpgo: Chan::Push: getting parameter failure");
+        zend_error(E_ERROR, "phpgo: Chan::push: getting parameter failure");
 		RETURN_FALSE;
     }
 	
@@ -453,8 +408,9 @@ PHP_MINFO_FUNCTION(phpgo)
  }
  /* }}} */
  
-   /* {{{ proto Chan::__construct
-  * Create a go channel object
+ /* {{{ proto Chan::tryPush
+  * Try to push object to channel, if writable
+  * otherwise return immediately, with channel unwritten
   */
  PHP_METHOD(Chan,TryPush){
 	 
@@ -464,7 +420,7 @@ PHP_MINFO_FUNCTION(phpgo)
 	zval* z        = NULL;
 	
 	if( zend_parse_parameters(ZEND_NUM_ARGS() TSRMLS_CC, "z", &z) == FAILURE ){
-        zend_error(E_ERROR, "phpgo: Chan::Push: getting parameter failure");
+        zend_error(E_ERROR, "phpgo: Chan::tryPush: getting parameter failure");
 		RETURN_FALSE;
     }
 	
@@ -483,8 +439,8 @@ PHP_MINFO_FUNCTION(phpgo)
  /* }}} */
  
  
- /* {{{ proto Chan::__construct
-  * Create a go channel object
+ /* {{{ proto Chan::pop
+  * pop an object from channel, block if no data to read
   */
  PHP_METHOD(Chan,Pop){
 	 
@@ -506,8 +462,13 @@ PHP_MINFO_FUNCTION(phpgo)
  }
  /* }}} */
  
-  /* {{{ proto Chan::__construct
-  * Create a go channel object
+ /* {{{ proto Chan::tryPop
+  * Try to pop data from channel, if readable
+  * return immediately if no data to read
+  * return:
+  * 	data read if available
+  * 	false if channel not ready for reading
+  * 	NULL if channel closed
   */
  PHP_METHOD(Chan,TryPop){
 	 
@@ -536,8 +497,8 @@ PHP_MINFO_FUNCTION(phpgo)
  /* }}} */
  
  
-  /* {{{ proto Chan::__construct
-  * Create a go channel object
+  /* {{{ proto Chan::close
+  * Close a channel
   */
  PHP_METHOD(Chan,Close){
 	 
@@ -557,7 +518,7 @@ PHP_MINFO_FUNCTION(phpgo)
  
  
  /* {{{ proto Chan::__destruct
-  * Create a go channel object
+  * Destroy a go channel object
   */
  PHP_METHOD(Chan,__destruct){
 	 
@@ -576,8 +537,9 @@ PHP_MINFO_FUNCTION(phpgo)
  }
  /* }}} */
  
-   /* {{{ proto Selector::__destruct
-  * Create a go channel object
+   /* {{{ proto Selector::__construct
+  * Create a selector object, it won't be called by the PHP code
+  * it's called and resulting object returned by the select()
   */
  PHP_METHOD(Selector,__construct){
 	long selector = 0;
@@ -594,21 +556,21 @@ PHP_MINFO_FUNCTION(phpgo)
  /* }}} */
  
  
- /* {{{ proto Selector::__destruct
-  * Create a go channel object
+ /* {{{ proto Selector::select
+  * Do select and return a selector object (for a faster call next time)
   */
  PHP_METHOD(Selector, Select){
 	zval* self = getThis();
 	zval* z_selector = zend_read_property(ce_go_selector_ptr, self, "handle", sizeof("handle")-1, true TSRMLS_CC);
 	
 	if(!z_selector || Z_TYPE_P(z_selector) == IS_NULL){
-		zend_error(E_ERROR, "phpgo: Selector::Select(): error reading object handle");
+		zend_error(E_ERROR, "phpgo: Selector::select(): error reading object handle");
 		return;
 	}
 	
 	auto selector = (GO_SELECTOR*)Z_LVAL_P(z_selector);
 	if( !selector ){
-		zend_error(E_ERROR, "phpgo: Selector::Select(): null object handle");
+		zend_error(E_ERROR, "phpgo: Selector::select(): null object handle");
 		return;
 	}
 	
@@ -618,22 +580,22 @@ PHP_MINFO_FUNCTION(phpgo)
  }
  /* }}} */
  
-     /* {{{ proto Selector::__destruct
-  * Create a go channel object
+ /* {{{ proto Selector::loop
+  * Do select in a loop until the channel is written to or closed
   */
  PHP_METHOD(Selector, Loop){
 	 
 	zval* z_chan     = NULL;
 	
 	if( zend_parse_parameters(ZEND_NUM_ARGS() TSRMLS_CC, "z", &z_chan) == FAILURE ){
-        zend_error(E_ERROR, "phpgo: Selector::Loop(): getting parameter failure");
+        zend_error(E_ERROR, "phpgo: Selector::loop(): getting parameter failure");
 		RETURN_FALSE;
     }
 	
 	zval* chan = zend_read_property(ce_go_chan_ptr, z_chan, "handle", sizeof("handle")-1, true TSRMLS_CC);
 
 	if(!chan || Z_TYPE_P(chan) == IS_NULL ){
-		zend_error(E_ERROR, "phpgo: Selector::Loop(): null channel handle");
+		zend_error(E_ERROR, "phpgo: Selector::loop(): null channel handle");
 		RETURN_FALSE;
 	}
 	
@@ -644,13 +606,13 @@ PHP_MINFO_FUNCTION(phpgo)
 	zval* z_selector = zend_read_property(ce_go_selector_ptr, self, "handle", sizeof("handle")-1, true TSRMLS_CC);
 	
 	if(!z_selector || Z_TYPE_P(z_selector) == IS_NULL){
-		zend_error(E_ERROR, "phpgo: Selector::Loop(): error reading object handle");
+		zend_error(E_ERROR, "phpgo: Selector::loop(): error reading object handle");
 		RETURN_FALSE;
 	}
 	
 	auto selector = (GO_SELECTOR*)Z_LVAL_P(z_selector);
 	if( !selector ){
-		zend_error(E_ERROR, "phpgo: Selector::Loop(): null object handle");
+		zend_error(E_ERROR, "phpgo: Selector::loop(): null object handle");
 		RETURN_FALSE;
 	}
 	
@@ -670,7 +632,7 @@ PHP_MINFO_FUNCTION(phpgo)
  /* }}} */
  
   /* {{{ proto Selector::__destruct
-  * Create a go channel object
+  * Destroy the selector
   */
  PHP_METHOD(Selector,__destruct){
 	
@@ -711,10 +673,12 @@ PHP_MINFO_FUNCTION(phpgo)
  }
  /* }}} */
  
-/* {{{ proto int go( callable $func )
-   run the $func as go routine in the current thread context, and 
-   do not wait for the function complete
-   Return true */
+/* {{{ proto int go( callable $func, ...$args )
+ * run the $func as in a go routine in the current thread context, 
+ * do not wait the function to complete
+ * returns:
+ * 		true 
+ */
 PHP_FUNCTION(go)
 {
 	int argc = ZEND_NUM_ARGS();
@@ -747,10 +711,29 @@ PHP_FUNCTION(go)
 	RETURN_LONG( (long)co );
 }
 
-/* {{{ proto int go( callable $func )
-   run the $func as go routine in the current thread context, and 
-   do not wait for the function complete
-   Return true */
+/* {{{ proto int go( array $options, callable $func, ...$args )
+ * run the $func as in a go routine in the current thread context, 
+ * do not wait the function to complete
+ * the available options are:
+ * 		$options['stack_size']: 
+ * 			provide a customized stack size to the go routine
+ * 			if the provided stack size is less than 32K bytes,	it will	be round 
+ * 			up to 32K bytes. 
+ * 			Default is 1024K bytes if not provided
+ * 			Note: the stack size provide a max size of the stack can reach, the 
+ * 			underlying mechanism increases stack bit by bit thus a large stack 
+ * 			size does not necessarily mean a waste of memory
+ *		$options['isolate_http_globals']
+ *			denotes whether the http "super globals" - $_GET, $_POST ... etc should
+ *			be isolated from the go routine's parent
+ *			if ture: the super globals will be copied from parent on the go routine
+ *			creation, and then both sets of super globals are maintained seperately,
+ *			i.e, change of super golbals in go routine does not change those of the 
+ *			parent (can be a go routine or the scheduler) ans vise versa
+ *			if false: the super globals are shared by the go routine and it's parent
+ * returns:
+ * 		true 
+ */
 PHP_FUNCTION(goo)
 {
 	bool isolate_http_globals = false;
@@ -808,8 +791,9 @@ PHP_FUNCTION(goo)
 	RETURN_LONG( (long)co );
 }
 
-/* {{{ proto void go_schedule_forever(void)
-   loop running the secheduler forever*/
+/* {{{ proto void go_debug($flag)
+ *   set debug flag, -1 for all
+ */
 PHP_FUNCTION( go_debug )
 {
 	long debug_flag;
@@ -902,8 +886,9 @@ PHP_FUNCTION(_case)
 }
 /* }}} */
 
-/* {{{ proto void go_schedule_forever(void)
-   loop running the secheduler forever*/
+/* {{{ proto void _default
+ *   construct a default select case
+ */
 PHP_FUNCTION(_default)
 {
 	#define GO_CASE_FREE_RESOURCE() \
@@ -946,13 +931,12 @@ error_return:
 	
 	GO_CASE_FREE_RESOURCE();
 	RETURN_FALSE;
-	//void dump_zval(zval* zv);
-	//dump_zval(callback);
 }
 /* }}} */
 
-/* {{{ proto void go_schedule_forever(void)
-   loop running the secheduler forever*/
+/* {{{ proto void select()
+ * do go-style select
+ */
 PHP_FUNCTION(select)
 {
 	#define GO_SELECT_FREE_RESOURCE() \
@@ -1025,7 +1009,7 @@ PHP_FUNCTION(select)
 			zend_error(E_ERROR, "phpgo: select(): error getting parameter %d data", i + 1);
 			goto error_return;
 		};
-		//chan = Z_LVAL_P(*data); 
+
 		chan = *data;
 		zend_hash_move_forward_ex(ht, &pointer);
 		
@@ -1061,14 +1045,6 @@ PHP_FUNCTION(select)
 		case_array[i].value = value; 
 		zval_add_ref(&callback);
 		case_array[i].callback = callback; 
-		
-		//printf("go select: conver go_cases into c array: callback:\n");
-		//extern void dump_zval(zval*);
-		//dump_zval(callback);
-		
-		
-		//printf( "select case_type: %ld, chan: %ld op: %d, value %p, callback: %p\n" , case_type, chan, op, value, callback);
-		
 	}
 	
 	if( exec )
@@ -1084,26 +1060,18 @@ PHP_FUNCTION(select)
 	MAKE_STD_ZVAL(arg1);
 	ZVAL_LONG(arg1, (long)selector);
 	
-	//printf("select, about to call Selector constructor selector: %p\n", selector);
 	zend_call_method_with_1_params(&z_selector, ce_go_selector_ptr, &ce_go_selector_ptr->constructor, "__construct", NULL, arg1);
 	zval_ptr_dtor(&arg1);
-	
-	//extern void dump_zval(zval*);
-	//printf("select, after call Selector constructor:\n");
-	//dump_zval(selector->case_array[0].callback); 
 	
 	efree(args);
 	
 	//copy z_selector value to return value, call copy ctor on return value,
 	//call dtor on z_selector
 	RETURN_ZVAL(z_selector, 1, 1);
-	//RETURN_LONG((long)selector);
 	
 error_return:	
 	GO_SELECT_FREE_RESOURCE();
 	RETURN_FALSE;
-	
-	//RETURN_ZVAL(z, 1, 0);
 }
 /* }}} */
 
@@ -1127,8 +1095,8 @@ PHP_METHOD(Mutex,__construct){
  }
  /* }}} */
  
-  /* {{{ proto Mutex::Lock
-  * Lock mutex. 
+  /* {{{ proto Mutex::lock
+  * lock mutex. 
   * If currently not in a coroutine and the lock cannot be obtained, the scheduler 
   * will be executed in 10ms interval until the lock is released by the go-routines
   * or other threads
@@ -1153,8 +1121,8 @@ PHP_METHOD(Mutex,__construct){
  }
  /* }}} */
  
- /* {{{ proto Mutex::Unlock
-  * Unlock mutex
+ /* {{{ proto Mutex::unlock
+  * unlock mutex
   */
  PHP_METHOD(Mutex,Unlock){
 	 
@@ -1176,8 +1144,10 @@ PHP_METHOD(Mutex,__construct){
  }
  /* }}} */
  
-  /* {{{ proto Mutex::TryLock
-  * Unlock mutex
+ /* {{{ proto Mutex::tryLock
+  * try to lock a mutex, if lock held by other go routine,
+  * return false immediately
+  * return true if lock obtained
   */
  PHP_METHOD(Mutex,TryLock){
 	zval* mutex     = NULL;
@@ -1196,8 +1166,8 @@ PHP_METHOD(Mutex,__construct){
  }
  /* }}} */
  
-  /* {{{ proto Mutex::Unlock
-  * Unlock mutex
+ /* {{{ proto Mutex::isLock
+  * check if the mutex is held by other go routines
   */
  PHP_METHOD(Mutex,IsLock){
 	 
@@ -1248,8 +1218,8 @@ PHP_METHOD(WaitGroup,__construct){
  }
  /* }}} */
  
-  /* {{{ proto WaitGroup::__construct
-  * Create a WaitGroup
+  /* {{{ proto WaitGroup::add
+  * Add a delta count to wait group counter
   */
  PHP_METHOD(WaitGroup,Add){
  	//printf("WaitGroup::Add\n");
@@ -1258,7 +1228,7 @@ PHP_METHOD(WaitGroup,__construct){
 	int64_t delta  = 1;
 	
 	if( zend_parse_parameters(ZEND_NUM_ARGS() TSRMLS_CC, "l", (long*)&delta) == FAILURE ){
-        zend_error(E_ERROR, "phpgo: WaitGroup::Add: getting parameter failure");
+        zend_error(E_ERROR, "phpgo: WaitGroup::add: getting parameter failure");
 		RETURN_FALSE;
     }
 	
@@ -1275,8 +1245,8 @@ PHP_METHOD(WaitGroup,__construct){
  }
   /* }}} */
  
-  /* {{{ proto WaitGroup::__construct
-  * Create a WaitGroup
+  /* {{{ proto WaitGroup::done
+  * Decrease the wait group counter by 1, alias of add(-1)
   */
  PHP_METHOD(WaitGroup,Done){
  	//printf("WaitGroup::Done\n");
@@ -1296,8 +1266,8 @@ PHP_METHOD(WaitGroup,__construct){
  }
   /* }}} */ 
   
-  /* {{{ proto WaitGroup::__construct
-  * Create a WaitGroup
+  /* {{{ proto WaitGroup::count
+  * return the current counter of the wait group
   */
  PHP_METHOD(WaitGroup,Count){
  	//printf("WaitGroup::Count\n");
@@ -1317,8 +1287,9 @@ PHP_METHOD(WaitGroup,__construct){
  }
   /* }}} */ 
   
- /* {{{ proto WaitGroup::__construct
-  * Create a WaitGroup
+ /* {{{ proto WaitGroup::wait
+  * Wait for the wait group counter to reach 0
+  * The wait() function can be used either in or out of a go routine
   */
  PHP_METHOD(WaitGroup,Wait){
  	//printf("WaitGroup::Wait\n");
@@ -1356,53 +1327,61 @@ PHP_METHOD(WaitGroup,__construct){
  }
  /* }}} */
  
- /* {{{ proto void go_schedule_once(void)
-   run the secheduler for a one pass*/
-PHP_METHOD(Scheduler, RunOnce)
+/* {{{ proto void Scheduler::run()
+ * run the secheduler for one pass
+ * return the number of go routines awaiting for the scheduler to schedule
+ */
+PHP_METHOD(Scheduler, Run)
 {
-	auto run_task_count = GoScheduler::RunOnce();
+	auto run_task_count = GoScheduler::Run();
 	
 	RETURN_LONG(run_task_count);
 }
 /* }}} */
 
-/* {{{ proto void go_schedule_all(void)
-   run the secheduler until all go routines completed*/
-PHP_METHOD(Scheduler, RunJoinAll)
+/* {{{ proto void Scheduler::join($tasks_left)
+ *   run the secheduler until the un-completed go routine number 
+ *   be less than or equal to $tasks_left
+ */
+PHP_METHOD(Scheduler, Join)
 {
 	uint64_t tasks_left = 0; 
 	if( ZEND_NUM_ARGS() ){
 		if (zend_parse_parameters(ZEND_NUM_ARGS() TSRMLS_CC, "l", &tasks_left) == FAILURE) {
-			zend_error(E_ERROR, "phpgo: Scheduler::RunJoinAll: getting parameter failure");
+			zend_error(E_ERROR, "phpgo: Scheduler::join: getting parameter failure");
 			return;
 		}
 	}
 	
-	GoScheduler::RunJoinAll( (uint32_t)tasks_left );
+	GoScheduler::Join( (uint32_t)tasks_left );
 	RETURN_TRUE;
 }
 /* }}} */
 
-/* {{{ proto void go_schedule_forever(void)
+/* {{{ proto void Scheduler::loop(void)
    loop running the secheduler forever*/
-PHP_METHOD(Scheduler, RunForever)
+PHP_METHOD(Scheduler, Loop)
 {
-	GoScheduler::RunForever();
+	GoScheduler::Loop();
 	RETURN_TRUE;
 }
 /* }}} */
 
 
-/* {{{ proto void go_schedule_forever(void)
-   loop running the secheduler forever*/
+/* {{{ proto void Runtime::numGoroutine()
+ *  return the number of go routines left to run under the secheuler
+ */
 PHP_METHOD(Runtime, NumGoroutine)
 {
 	RETURN_LONG( phpgo_go_runtime_num_goroutine() );
 }
 /* }}} */
 
-/* {{{ proto void go_schedule_forever(void)
-   loop running the secheduler forever*/
+/* {{{ proto void Runtime::gosched(void)
+ *  run the scheduler explicitly
+ *  if invoked in a go routine, the cpu is yield to other go routines
+ *  if invoked by the scheduler, it's equivilant to Scheduler::run()
+ */
 PHP_METHOD(Runtime, Gosched)
 {
 	phpgo_go_runtime_gosched();
@@ -1417,15 +1396,18 @@ PHP_METHOD(Runtime, Goid)
 }
 /* }}} */
 
-/* {{{ proto void go_schedule_forever(void)
-   loop running the secheduler forever*/
+/* {{{ proto Chan Timer::tick( $micro_seconds )
+ * start a periodic timer with interval $micro_seconds micro seconds
+ * once timer expires, an integer 1 is written to the channel as returned
+ * by this function
+ */
 PHP_METHOD(Timer, Tick)
 {
 	//printf("Timer::Tick\n");
 	
 	uint64_t micro_seconds  = 0;
 	if( zend_parse_parameters(ZEND_NUM_ARGS() TSRMLS_CC, "l", (long*)&micro_seconds) == FAILURE ){
-        zend_error(E_ERROR, "phpgo: Timer::Tick: getting parameter failure");
+        zend_error(E_ERROR, "phpgo: Timer::tick: getting parameter failure");
 		RETURN_NULL();
     }
 	
@@ -1457,15 +1439,18 @@ PHP_METHOD(Timer, Tick)
 /* }}} */
 
 
-/* {{{ proto void go_schedule_forever(void)
-   loop running the secheduler forever*/
+/* {{{ proto Chan Timer::after($micro_seconds)
+ * start a one-time timer which will expire $micro_seconds later
+ * once timer expires, an integer 1 is written to the channel as returned
+ * by this function
+ */
 PHP_METHOD(Timer, After)
 {
 	//printf("Timer::After\n");
 	
 	uint64_t micro_seconds  = 0;
 	if( zend_parse_parameters(ZEND_NUM_ARGS() TSRMLS_CC, "l", (long*)&micro_seconds) == FAILURE ){
-        zend_error(E_ERROR, "phpgo: Timer::Tick: getting parameter failure");
+        zend_error(E_ERROR, "phpgo: Timer::tick: getting parameter failure");
 		RETURN_NULL();
     }
 	
