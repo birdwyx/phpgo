@@ -38,7 +38,7 @@ go(function(&$str){
 
 subtc(1);
 echo $str .PHP_EOL;
-Scheduler::RunJoinAll();
+Scheduler::join();
 subtc(6);
 echo $str;
 
@@ -70,7 +70,7 @@ go(function(&$i){
 
 subtc(6.1);
 echo "$i\n";
-Scheduler::RunJoinAll();
+Scheduler::join();
 subtc(10.1);
 echo "$i\n";
 
@@ -144,7 +144,7 @@ go(function(&$arr){
 }, $arr);
 
 
-Scheduler::RunJoinAll();
+Scheduler::join();
 subtc(15);
 var_dump($arr);
 
@@ -176,7 +176,7 @@ go(function($i, $bool, $null, $string, $obj, $arr, &$i1, &$bool1, &$null1, &$str
 	
 }, 1, true, null, "string", $obj, $arr, $i, $bool, $null, $string, $obj, $arr);
 
-Scheduler::RunJoinAll();
+Scheduler::join();
 
 ?>
 --EXPECT--

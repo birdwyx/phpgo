@@ -57,7 +57,7 @@ go(function() use($redis){
 		echo "get set of bar: success\n";
 });
 
-Scheduler::RunJoinAll();
+Scheduler::join();
 
 ?>
 --EXPECT--

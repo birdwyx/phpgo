@@ -37,7 +37,7 @@ go(function() use($ch){
 	echo 'now $u is: '. $u .PHP_EOL;
 });
 
-Scheduler::RunJoinAll();
+Scheduler::join();
 
 ?>
 --EXPECT--

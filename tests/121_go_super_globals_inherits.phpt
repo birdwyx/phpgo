@@ -125,7 +125,7 @@ goo($options, function() use($get, $post, $cookie, $server, $env, $request, $fil
 	echo PHP_EOL;
 });
 
-Scheduler::RunJoinAll();
+Scheduler::join();
 
 if($get == $_GET) echo "outside of go: verify change of super global in g does not change the outside - get ok\n";
 if($post == $_POST)  echo "outside of go: verify change of super global in g does not change the outside - post ok\n";

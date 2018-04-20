@@ -42,7 +42,7 @@ go(function(){
 $pass = 0;
 while(true){
 	$pass++;
-	$run = Scheduler::RunOnce();
+	$run = Scheduler::run();
 	if($run>0)
 		echo "^run $run tasks\n";
 	
@@ -60,9 +60,9 @@ go(function(){
 	echo "go 2\n";
 });
 
-Scheduler::RunJoinAll(1);
-echo "after RunJoinAll(1)\n";
-Scheduler::RunJoinAll(0);
+Scheduler::join(1);
+echo "after join(1)\n";
+Scheduler::join(0);
 
 subtc(3);
 
@@ -80,7 +80,7 @@ go(function(){
 });
 
 
-Scheduler::RunForever();
+Scheduler::loop();
 
 ?>
 --EXPECT--
@@ -100,7 +100,7 @@ return from go 4
 ^run 1 tasks
 SUB-TC: #2
 go 1
-after RunJoinAll(1)
+after join(1)
 go 2
 SUB-TC: #3
 go 1

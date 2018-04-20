@@ -29,7 +29,7 @@ go(function($ch){
 	}
 },$ch);
 
-Scheduler::RunJoinAll();
+Scheduler::join();
 
 ?>
 --EXPECT--

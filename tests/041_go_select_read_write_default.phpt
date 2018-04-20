@@ -83,7 +83,7 @@ go(function() use($ch){
 	echo "success\n";
 
 });
-Scheduler::RunJoinAll();
+Scheduler::join();
 
 ?>
 --EXPECT--

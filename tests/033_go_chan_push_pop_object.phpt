@@ -41,7 +41,7 @@ go(function($ch){
 	$v->say();
 },$ch);
 
-Scheduler::RunJoinAll();
+Scheduler::join();
 
 ?>
 --EXPECT--

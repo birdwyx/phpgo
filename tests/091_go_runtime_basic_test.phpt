@@ -33,13 +33,13 @@ go(function(){
 	echo "go 4\n";
 });
 
-Scheduler::RunOnce();
-Scheduler::RunOnce();
-Scheduler::RunOnce();
+Scheduler::run();
+Scheduler::run();
+Scheduler::run();
 
 echo "NumGoroutine:" . Runtime::NumGoroutine() .PHP_EOL;
 
-Scheduler::RunJoinAll();
+Scheduler::join();
 echo "NumGoroutine:" . Runtime::NumGoroutine() .PHP_EOL;
 
 

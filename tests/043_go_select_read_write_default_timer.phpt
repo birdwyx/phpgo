@@ -34,7 +34,7 @@ go(function() use($done){
 
 });
 
-Scheduler::RunJoinAll();
+Scheduler::join();
 
 subtc(2);
 $done = new Chan(1);
@@ -69,7 +69,7 @@ go(function() use($done){
 
 });
 
-Scheduler::RunJoinAll();
+Scheduler::join();
 
 ?>
 --EXPECT--

@@ -42,7 +42,7 @@ go(function() use($m){
 	echo "go 2 obtained lock\n";
 });
 
-Scheduler::RunJoinAll();
+Scheduler::join();
 
 ?>
 --EXPECT--

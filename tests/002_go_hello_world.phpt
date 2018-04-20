@@ -9,7 +9,7 @@ go(function(){
 	echo "Hello World";
 });
 
-Scheduler::RunJoinAll();
+Scheduler::join();
 
 ?>
 --EXPECT--

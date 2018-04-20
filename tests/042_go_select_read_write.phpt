@@ -47,7 +47,7 @@ go(function() use($ch){
 	else echo "success\n";
 });
 
-Scheduler::RunJoinAll();
+Scheduler::join();
 
 ?>
 --EXPECT--

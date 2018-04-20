@@ -28,7 +28,7 @@ go(function(){
 assert(Runtime::Goid() == 0);
 //var_dump(Runtime::Goid());
 
-Scheduler::RunJoinAll();
+Scheduler::join();
 
 echo "success\n";
 

@@ -14,7 +14,7 @@ go('f');
 $var = 'f';
 go($var);
 
-Scheduler::RunJoinAll();
+Scheduler::join();
 
 ?>
 --EXPECT--

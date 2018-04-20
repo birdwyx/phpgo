@@ -35,7 +35,7 @@ go(function() use($m){
 });
 
 
-Scheduler::RunJoinAll();
+Scheduler::join();
 
 subtc(2);
 
@@ -65,7 +65,7 @@ go(function() use($m1){
 	$m1->unlock();
 });
 
-Scheduler::RunJoinAll();
+Scheduler::join();
 
 ?>
 --EXPECT--

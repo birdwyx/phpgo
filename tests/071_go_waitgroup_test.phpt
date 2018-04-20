@@ -32,7 +32,7 @@ for($i=0;$i<10;$i++){
 }
 
 
-Scheduler::RunJoinAll();
+Scheduler::join();
 
 ?>
 --EXPECT--

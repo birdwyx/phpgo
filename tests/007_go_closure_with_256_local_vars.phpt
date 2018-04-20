@@ -42,7 +42,7 @@ go(function(){
 	}
 );
 
-Scheduler::RunJoinAll();
+Scheduler::join();
 
 ?>
 --EXPECT--

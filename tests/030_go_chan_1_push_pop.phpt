@@ -27,7 +27,7 @@ go(function($ch){
 	echo "pushed $v\n";
 },$ch);
 
-Scheduler::RunJoinAll();
+Scheduler::join();
 
 ?>
 --EXPECT--

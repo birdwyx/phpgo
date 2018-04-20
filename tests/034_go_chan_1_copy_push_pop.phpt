@@ -51,7 +51,7 @@ go(function($ch){
 	echo "go2: popped:";	var_dump($v);
 },$ch);
 
-Scheduler::RunJoinAll();
+Scheduler::join();
 
 ?>
 --EXPECT--

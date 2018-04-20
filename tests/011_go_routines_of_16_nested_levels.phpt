@@ -41,7 +41,7 @@ function f($level){
 
 go('f', 0);
 
-Scheduler::RunJoinAll();
+Scheduler::join();
 
 echo "the only output\n"
 

@@ -73,7 +73,7 @@ go(function() use($db, &$succ2){
 		$succ2 = true;
 });
 
-Scheduler::RunJoinAll();
+Scheduler::join();
 
 if($succ1 && $succ2) 
 	echo "success\n";

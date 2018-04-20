@@ -42,7 +42,7 @@ go(function($ch){
 	var_dump($v);
 },$ch);
 
-Scheduler::RunJoinAll();
+Scheduler::join();
 
 ?>
 --EXPECT--
