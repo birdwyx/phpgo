@@ -53,8 +53,6 @@ PHP_FUNCTION(goo);
 PHP_FUNCTION(go_debug);
 
 PHP_FUNCTION(select);
-PHP_FUNCTION(_case);
-PHP_FUNCTION(_default);
 
 PHP_METHOD(Scheduler, Run);
 PHP_METHOD(Scheduler, Join);

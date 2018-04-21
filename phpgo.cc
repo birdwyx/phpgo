@@ -84,13 +84,6 @@ ZEND_END_ARG_INFO()
 ZEND_BEGIN_ARG_INFO_EX(arginfo_go_selector_loop, 0, 0, 1)
 	ZEND_ARG_INFO(0, done_chan)
 ZEND_END_ARG_INFO()
-
-ZEND_BEGIN_ARG_INFO_EX(arginfo_go__case, 0, 0, 4)
-	ZEND_ARG_INFO(0, chan)
-	ZEND_ARG_INFO(0, rw)
-	ZEND_ARG_INFO(1, var)
-	ZEND_ARG_INFO(0, callback)
-ZEND_END_ARG_INFO()
 /* }}} */
 
 /* {{{ phpgo_functions[]
@@ -105,8 +98,6 @@ const zend_function_entry phpgo_functions[] = {
 	//ZEND_NS_NAMED_FE(PHPGO_NS, go_debug, ZEND_FN(go_go_debug), NULL)
 	
 	PHP_FE(select, NULL)
-	PHP_FE(_case, arginfo_go__case)
-	PHP_FE(_default, NULL)
 	PHP_FE_END	/* Must be the last line in phpgo_functions[] */
 };
 /* }}} */
@@ -803,134 +794,6 @@ PHP_FUNCTION( go_debug )
 		return;
     }
 	phpgo_go_debug(debug_flag);
-}
-/* }}} */
-
-/* {{{ proto mixed _case(mixed $ch, string $rw, mixed& $value, callable $callback)
-   construct a case for the select()
-   $ch:       the channel object obtained by go_chan_create()
-   $rw:       to read or write the channel, can be "->" (read) or "<-" (write)
-   $value:    the reference of the value to be written to / read from the channel
-   $callback: when the $value is is successfully read from/written to the channel, 
-              the callback will be invoked with the data read/written, i.e., 
-			  $callback($value) called
-			  
-   A go case must be used with select(), otherwise nothing will happen, i.e.,
-   no any data read/write happens and callback won't be called 
-*/
-PHP_FUNCTION(_case)
-{
-	#define GO_CASE_FREE_RESOURCE() \
-		do { /*if(op) efree(op);*/ \
-			 if(func_name) efree(func_name); \
-		}while(0)
-	
-	zval* chan;
-	zval* callback;
-	zval* value;
-	char* op = NULL; 
-	int   op_len; 
-	char* func_name = NULL; 
-	long  op_i = 0;
-	
-	defer{
-		GO_CASE_FREE_RESOURCE();
-	};
-
-	if (zend_parse_parameters(ZEND_NUM_ARGS() TSRMLS_CC, "zszz", &chan, &op, &op_len, &value, &callback ) == FAILURE)
-    {
-        zend_error(E_ERROR, "phpgo: getting parameter failure");
-		return;
-    }
-	
-	if( strcmp(op, "->") ==0 ){
-		op_i = GO_CASE_OP_READ;
-	}else if( strcmp(op, "<-") ==0 ){
-		op_i = GO_CASE_OP_WRITE;
-	}
-	else{
-		zend_error(E_ERROR, "phpgo: invalid channel operation %s", op);
-		return;
-	}
-	
-    if (!zend_is_callable(callback, 0, &func_name TSRMLS_CC)){
-        zend_error(E_ERROR, "phpgo: function '%s' is not callable", func_name);
-        return;
-    }
-	
-	array_init(return_value);
-	add_index_long(return_value, 0, GO_CASE_TYPE_CASE);
-	
-	zval* ch;
-	ALLOC_INIT_ZVAL(ch);
-	MAKE_COPY_ZVAL(&chan,ch);
-	//zval_add_ref(&chan);
-	add_next_index_zval(return_value, ch);
-	
-	add_next_index_long(return_value, op_i);
-	
-	if(op_i == GO_CASE_OP_READ){
-		zval_add_ref(&value);
-		add_next_index_zval(return_value, value);
-	}else{
-		zval* v;
-		ALLOC_INIT_ZVAL(v);
-		MAKE_COPY_ZVAL(&value,v);
-		add_next_index_zval(return_value, v);
-	}
-	
-	zval* cb;
-	ALLOC_INIT_ZVAL(cb);
-	MAKE_COPY_ZVAL(&callback,cb);
-	add_next_index_zval(return_value, cb);
-}
-/* }}} */
-
-/* {{{ proto void _default
- *   construct a default select case
- */
-PHP_FUNCTION(_default)
-{
-	#define GO_CASE_FREE_RESOURCE() \
-		do { \
-			 if(func_name) efree(func_name); \
-		}while(0)
-
-	zval* callback;
-	char* func_name = NULL; 
-
-	if (zend_parse_parameters(ZEND_NUM_ARGS() TSRMLS_CC, "z", &callback ) == FAILURE)
-    {
-        zend_error(E_ERROR, "phpgo: getting parameter failure");
-		goto error_return;
-    }
-	
-    if (!zend_is_callable(callback, 0, &func_name TSRMLS_CC)){
-        zend_error(E_ERROR, "phpgo: function '%s' is not callable", func_name);
-        goto error_return;
-    }
-	
-	array_init(return_value);
-	add_index_long(return_value, 0, GO_CASE_TYPE_DEFAULT);
-	add_next_index_long(return_value, 0);
-    add_next_index_long(return_value, 0);
-	
-	zval* zval_null;
-	ALLOC_INIT_ZVAL(zval_null);
-	add_next_index_zval(return_value, zval_null);
-	
-	zval* cb;
-	ALLOC_INIT_ZVAL(cb);
-	MAKE_COPY_ZVAL(&callback,cb);
-	add_next_index_zval(return_value, cb);
-	
-	GO_CASE_FREE_RESOURCE();
-	return;
-	
-error_return:
-	
-	GO_CASE_FREE_RESOURCE();
-	RETURN_FALSE;
 }
 /* }}} */
 
