@@ -21,14 +21,14 @@ go(function() use($ch){
 	$v = -1; $u = $v; $fail = false;
 	while(true){
 		select(
-			_case($ch, "->", $v, function($data) use($i, &$read){
+			['case',$ch, "->", /*$v,*/ function($data) use($i, &$read){
 				$read++;
 				//echo "pass $i: read from chan: $data\n";
-			}),
-			_case($ch, "<-", $i, function($data) use($i, &$write){
+			}],
+			['case',$ch, "<-", $i, function($data) use($i, &$write){
 				$write++;
 				//echo "pass $i: written to chan: $data\n";
-			})
+			}]
 			/*,
 			_default(function(){
 				echo "this is default\n";

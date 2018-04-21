@@ -1,5 +1,5 @@
 --TEST--
-Go Select read write default
+Go Select shortcut syntax
 
 --FILE--
 <?php
@@ -12,16 +12,44 @@ function subtc($seq){
 
 $ch = new Chan(["capacity"=>10]);
 
+//error_reporting(0);
 
 go(function() use($ch){
 	$seq = 1;
 	
-	subtc(1);
+	subtc(1);  // unexpected extra parameter
 	$read = 0; $write = 0; $df = 0; $v=1111;
 	$ch->push(1);
+
+	ob_start();
 	select(
 		[
-			'case', $ch, "->", &$v, function($v) use(&$read){
+			'case', $ch, '->', &$v, function($v) use(&$read){
+				if($v===1)
+					$read = 1;
+			}
+		],
+		[
+			'default', function() use(&$df){
+				$df = 1;
+			}, 'unexpected extra parameter'
+		]
+	);
+	$res = ob_get_clean();
+	if( !preg_match("/.*case 2: unexpected extra parameter detected after the callable.*/s", $res) ){
+		echo "verify unexpected extra parameter can be detected: failed\n";
+	}
+
+	assert($read===1 && $df===0);
+	echo "success\n";
+	
+	subtc(2); //receiving variable ommited
+	$read = 0; $write = 0; $df = 0; $v=1111;
+	$ch->push(1);
+
+	select(
+		[
+			'case', $ch, '->', function($v) use(&$read){
 				if($v===1)
 					$read = 1;
 			}
@@ -32,72 +60,34 @@ go(function() use($ch){
 			}
 		]
 	);
+
 	assert($read===1 && $df===0);
 	echo "success\n";
 	
-	subtc(2);
+	subtc(3); //operator and receiving variable ommited
 	$read = 0; $write = 0; $df = 0; $v=1111;
-	
+	$ch->push(1);
+
 	select(
 		[
-			'case', $ch, "<-", $v, function($v) use(&$write){
-				if($v==1111)
-					$write = 1;
-			}
-		],
-		[
-			'default', function() use(&$df){
-				$df = 1;
-			}
-		]
-	);
-	$ch->Pop();
-	assert($write===1 && $df===0);
-	echo "success\n";
-	
-	subtc(3);
-	$read = 0; $write = 0; $df = 0; $v=1111;
-	for($i=0; $i<10;$i++){
-		$ch->push($i);
-	}
-	
-	select(
-		[
-			'case', $ch, "<-", &$v, function($v) use(&$write){
-				//if($v==1111)
-					$write = 1;
-			},
-		],
-		[
-			'default', function() use(&$df){
-				$df = 1;
-			}
-		]
-	);
-	assert($write===0 && $df===1);
-	echo "success\n";
-	
-	subtc(4);
-	$read = 0; $write = 0; $df = 0; $v=1111;
-	for($i=0; $i<10;$i++){
-		$ch->pop();
-	}
-	select(
-		[
-			'case', $ch, "->", &$v, function($v) use(&$read){
-				//if($v==1111)
+			'case', $ch, function($v) use(&$read){
+				if($v===1)
 					$read = 1;
 			}
 		],
-		[	'default', function() use(&$df){
+		[
+			'default', function() use(&$df){
 				$df = 1;
 			}
 		]
 	);
-	assert($read===0 && $df===1);
+
+	assert($read===1 && $df===0);
 	echo "success\n";
 
 });
+
+
 Scheduler::join();
 
 ?>
@@ -108,6 +98,5 @@ SUB-TC: #2
 success
 SUB-TC: #3
 success
-SUB-TC: #4
-success
+
 

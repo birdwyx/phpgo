@@ -23,11 +23,14 @@ go(function($ch){
 
 go(function() use($ch){
 	$v = -1; $u = $v;  $i=0; 
+	$cases = ['case', 'CasE', 'CAse', 'CASe', 'CASE'];
 	while(true){
 		select(
-			_case($ch, "->", $v, function($v){
-				var_dump($v);
-			})
+			[
+				$cases[$i%5], $ch, "->", &$v, function($v){
+					var_dump($v);
+				}
+			]
 		);
 		if($i==20) break;
 		$i++;

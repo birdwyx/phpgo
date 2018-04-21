@@ -651,18 +651,18 @@ PHP_MINFO_FUNCTION(phpgo)
 		auto case_array = sel->case_array;
 
 		for(auto i = 0; i < case_count; i++){
-			if( case_array[i].chan && 
-			    Z_TYPE_P(case_array[i].chan) != IS_NULL ) {
+			if( case_array[i].chan /*&& 
+			    Z_TYPE_P(case_array[i].chan) != IS_NULL*/ ) {
 				zval_ptr_dtor(&case_array[i].chan);
 			}
 			
-			if( case_array[i].value && 
-			    Z_TYPE_P(case_array[i].value) != IS_NULL ) {
+			if( case_array[i].value /*&& 
+			    Z_TYPE_P(case_array[i].value) != IS_NULL*/ ) {
 				zval_ptr_dtor(&case_array[i].value);
 			}
 
-			if( case_array[i].callback && 
-			    Z_TYPE_P(case_array[i].callback) != IS_NULL) {
+			if( case_array[i].callback /*&& 
+			    Z_TYPE_P(case_array[i].callback) != IS_NULL*/) {
 				zval_ptr_dtor(&case_array[i].callback);
 			}
 		}
@@ -943,6 +943,27 @@ PHP_FUNCTION(select)
 	do { \
 		if(args) efree(args); \
 		if(case_array) efree(case_array); \
+		if(func_name) efree(func_name); \
+	}while(0)
+		
+	#define ENSURE_SUFFICIENT_PARAMETERS() \
+	do{ \
+		if(!pointer){ \
+			zend_error(E_ERROR, "phpgo: select(): case %d: insufficient parameter count", i+1); \
+			goto error_return; \
+		} \
+	}while(0);
+	
+	//in case where operator (-> or <-) and value are omitted
+	//default behaviour is to read the value into a temporary zval
+	#define GO_TO_EXTRACT_CALLABLE_IF_EARLY_CALLABLE() \
+	do{ \
+		char* func_name = NULL; defer{ if(func_name) efree(func_name); }; \
+		if( zend_is_callable(*data, 0, &func_name TSRMLS_CC) ){ \
+			op = GO_CASE_OP_READ; \
+			ALLOC_INIT_ZVAL(value); \
+			goto extract_callable; \
+		} \
 	}while(0)
 	
 	GO_SELECT_CASE* case_array = NULL; 
@@ -951,6 +972,7 @@ PHP_FUNCTION(select)
 	bool exec                  = true;
 	zval* z_selector           = NULL;
 	zval* arg1                 = NULL;
+	char* func_name            = NULL;
 			
 	int argc                   = ZEND_NUM_ARGS(); 
 	int case_count             = argc;
@@ -983,66 +1005,157 @@ PHP_FUNCTION(select)
 	for(int i = 0; i < case_count; i++){
 		zval**       data;
 		HashTable*   ht;
-		HashPosition pointer;
+		HashPosition pointer = NULL;
 		zval*        chan = NULL;
 		long         op = 0, case_type = 0; 
 		zval*        callback = NULL; 
 		zval*        value = NULL;
+		zval*        ch = NULL;
+		zval*        v = NULL;
+		char*        op_str = NULL;
+		
+		defer{
+			if(chan)     zval_ptr_dtor(&chan);
+			if(value)    zval_ptr_dtor(&value);
+			if(callback) zval_ptr_dtor(&callback);
+		};
 		
 		if( Z_TYPE_P(*args[i]) != IS_ARRAY ){
-			zend_error(E_ERROR, "Parameter %d to select() expected to be an array", i+1);
+			zend_error(E_ERROR, "parameter %d to select() expected to be an array", i+1);
 			goto error_return;
 		}
 			
 		ht = Z_ARRVAL_P(*args[i]);
 		zend_hash_internal_pointer_reset_ex(ht, &pointer); 
+		ENSURE_SUFFICIENT_PARAMETERS();
 		
+		// #1 'case' / 'default'
 		if( zend_hash_get_current_data_ex(ht, (void**) &data, &pointer) != SUCCESS){
-			zend_error(E_ERROR, "phpgo: select(): error getting data of parameter %d", i + 1);
+			zend_error(E_ERROR, "phpgo: select(): error getting data of parameter %d", i+1);
 			goto error_return;
 		};
-		case_type = Z_LVAL_P(*data); 
 		
-		zend_hash_move_forward_ex(ht, &pointer);
-		
-		if( zend_hash_get_current_data_ex(ht, (void**) &data, &pointer) != SUCCESS){
-			zend_error(E_ERROR, "phpgo: select(): error getting parameter %d data", i + 1);
+		if( Z_TYPE_P(*data) != IS_STRING ){
+			zend_error(E_ERROR, "phpgo: select(): case %d: invalid case type, expect 'case' or 'default'", i+1);
 			goto error_return;
-		};
+		}
 
-		chan = *data;
-		zend_hash_move_forward_ex(ht, &pointer);
-		
-		if( zend_hash_get_current_data_ex(ht, (void**) &data, &pointer) != SUCCESS){
-			zend_error(E_ERROR, "phpgo: select(): error getting parameter %d data", i + 1);
+		auto case_type_str = Z_STRVAL_P(*data); 
+		if( !strcasecmp( case_type_str, "case" ) ){
+			case_type = GO_CASE_TYPE_CASE;
+		}else if ( !strcasecmp( case_type_str, "default" ) ){
+			case_type = GO_CASE_TYPE_DEFAULT;
+		}else{
+			zend_error(E_ERROR, "phpgo: select(): case %d: invalid case type %s", i+1, case_type_str);
 			goto error_return;
-		}; 
-		op = Z_LVAL_P(*data); 
-		zend_hash_move_forward_ex(ht, &pointer);
+		}
 		
-		if( zend_hash_get_current_data_ex(ht, (void**) &data, &pointer) != SUCCESS){
-			zend_error(E_ERROR, "phpgo: select(): error getting parameter %d data", i + 1);
-			goto error_return;
-		}; 
-		value = *data; 
 		zend_hash_move_forward_ex(ht, &pointer);
+		ENSURE_SUFFICIENT_PARAMETERS();
+
+		if( case_type == GO_CASE_TYPE_DEFAULT ){
+			op = 0;
+			ALLOC_INIT_ZVAL(chan);
+			ALLOC_INIT_ZVAL(value);
+			goto extract_callable;
+		}
 		
+		//#2 chan
 		if( zend_hash_get_current_data_ex(ht, (void**) &data, &pointer) != SUCCESS){
-			zend_error(E_ERROR, "phpgo: select(): error getting parameter %d data", i + 1);
+			zend_error(E_ERROR, "phpgo: select(): error getting parameter %d data", i+1);
 			goto error_return;
 		};
-		callback = *data; 
+		if( Z_TYPE_P(*data) != IS_OBJECT ){
+			zend_error(E_ERROR, "phpgo: select(): case %d: invalid parameter type, object of go\\Chan expected", i+1);
+			goto error_return;
+		}
+		ch = *data;
+		ALLOC_INIT_ZVAL(chan);
+		MAKE_COPY_ZVAL(&ch,chan);
+
+		zend_hash_move_forward_ex(ht, &pointer);
+		ENSURE_SUFFICIENT_PARAMETERS();
+		
+		// #3 op: "->" "<-"
+		if( zend_hash_get_current_data_ex(ht, (void**) &data, &pointer) != SUCCESS){
+			zend_error(E_ERROR, "phpgo: select(): error getting parameter %d data", i+1);
+			goto error_return;
+		};
+		
+		if( Z_TYPE_P(*data) != IS_STRING ){
+			GO_TO_EXTRACT_CALLABLE_IF_EARLY_CALLABLE();
+			zend_error(E_ERROR, "phpgo: select(): case %d: invalid operation type, expect '<-' or '->'", i+1);
+			goto error_return;
+		}
+		op_str = Z_STRVAL_P(*data); 
+		if( !strcmp(op_str, "->") ){
+			op = GO_CASE_OP_READ;
+		}else if( !strcmp(op_str, "<-") ){
+			op = GO_CASE_OP_WRITE; 
+		}else{
+			zend_error(E_ERROR, "phpgo: select(): case %d: invalid operation type %s", i+1, op_str);
+			goto error_return;
+		}
+
+		zend_hash_move_forward_ex(ht, &pointer);
+		ENSURE_SUFFICIENT_PARAMETERS();
+		
+		//#4 value
+		if( zend_hash_get_current_data_ex(ht, (void**) &data, &pointer) != SUCCESS){
+			zend_error(E_ERROR, "phpgo: select(): error getting parameter %d data", i+1);
+			goto error_return;
+		};
+		
+		v = *data; 
+		if(op == GO_CASE_OP_READ){
+			// '->' followed by a callable, the value is ommited
+			GO_TO_EXTRACT_CALLABLE_IF_EARLY_CALLABLE();
+			
+			if( !PZVAL_IS_REF(v) ){
+				zend_error(E_ERROR, "phpgo: select(): case %d: variable must be reference if not ommited", i+1);
+				goto error_return;
+			}
+			value = v;
+			zval_add_ref(&value);
+		}else{
+			ALLOC_INIT_ZVAL(value);
+			MAKE_COPY_ZVAL(&v,value);
+		}
+
+		zend_hash_move_forward_ex(ht, &pointer);
+		ENSURE_SUFFICIENT_PARAMETERS();
+
+	extract_callable:
+		//#5 callable
+		if( zend_hash_get_current_data_ex(ht, (void**) &data, &pointer) != SUCCESS){
+			zend_error(E_ERROR, "phpgo: select(): error getting parameter %d data", i+1);
+			goto error_return;
+		};
+		if(!zend_is_callable(*data, 0, &func_name TSRMLS_CC)){
+			zend_error(E_ERROR, "phpgo: case %d: function '%s' is not callable", i+1, func_name);
+			goto error_return;
+		}
+		zval* cb = *data; 
+		ALLOC_INIT_ZVAL(callback);
+		MAKE_COPY_ZVAL(&cb,callback);
+		
+		zend_hash_move_forward_ex(ht, &pointer);
+		if( pointer ){
+			zend_error(E_WARNING, "phpgo: select(): case %d: unexpected extra parameter detected after the callable, ommited", i+1);
+			//goto error_return;
+		}
 		
 		case_array[i].case_type = case_type;
 		
+		//need to addref the chan, value and callback, since they will be dtor'ed 
+		//by the defer{}
 		zval_add_ref(&chan);
 		case_array[i].chan = chan;
 		case_array[i].op = op;
-		
-		//need to addref the value and callback, since they will be dtor'ed 
-		//on the hash table (ht) destruction during this funciton return
+
 		zval_add_ref(&value);
 		case_array[i].value = value; 
+
 		zval_add_ref(&callback);
 		case_array[i].callback = callback; 
 	}
