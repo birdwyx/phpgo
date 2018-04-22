@@ -1,5 +1,5 @@
 --TEST--
-Go Select shortcut syntax
+Go select shortcut syntax
 
 --FILE--
 <?php

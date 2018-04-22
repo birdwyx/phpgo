@@ -1,5 +1,5 @@
 --TEST--
-Go Select read write default
+Go select read write default
 
 --FILE--
 <?php
@@ -51,7 +51,7 @@ go(function() use($ch){
 			}
 		]
 	);
-	$ch->Pop();
+	$ch->pop();
 	assert($write===1 && $df===0);
 	echo "success\n";
 	

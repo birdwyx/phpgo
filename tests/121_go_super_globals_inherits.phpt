@@ -86,10 +86,10 @@ goo($options, function() use($get, $post, $cookie, $server, $env, $request, $fil
 		$_FILES['var'] = "world2";
 		$GLOBALS['var'] = "world2";
 		
-		$ch->Push("");
+		$ch->push("");
 	});
 	
-	$ch->Pop();
+	$ch->pop();
 	
 	if($_GET['var'] == "world") echo "in go: verify change of super global in inner g does not change the outside - get ok\n";
 	if($_POST['var'] == "world") echo "in go: verify change of super global in inner g does not change the outside - post ok\n";

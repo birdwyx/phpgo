@@ -1,5 +1,5 @@
 --TEST--
-Go Select read write default timer
+Go select read write default timer
 
 --FILE--
 <?php
@@ -19,7 +19,7 @@ go(function() use($done){
 	$begin = time();
 	$dummy = 0;
 	$sel = select(
-		[ 'case', Timer::After(1000*1000), "->", &$dummy, function($v) use($done, $begin){
+		[ 'case', Timer::after(1000*1000), "->", &$dummy, function($v) use($done, $begin){
 			assert( $v===1 );
 			assert( time()-$begin == 1 );
 			
@@ -46,7 +46,7 @@ go(function() use($done){
 	//echo $begin;
 	$dummy = 0;
 	$sel = select(
-		[ 'case', Timer::Tick(100*1000), /*"->", &$dummy, */ function($v) use($done, &$begin, &$i){
+		[ 'case', Timer::tick(100*1000), /*"->", &$dummy, */ function($v) use($done, &$begin, &$i){
 			assert( $v===1 );
 			assert( ($diff = abs( microtime(true)-$begin-0.1 )) < 0.005 );
 			//echo $diff . " ";

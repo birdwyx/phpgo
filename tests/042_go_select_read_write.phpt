@@ -1,5 +1,5 @@
 --TEST--
-Go Select read write
+Go select read write
 
 --FILE--
 <?php
@@ -16,7 +16,7 @@ $ch = new Chan(["capacity"=>1000]);
 
 go(function() use($ch){
 	for($i=0;$i<500;$i++){
-		$ch->Push($i);
+		$ch->push($i);
 	}
 	$v = -1; $u = $v; $fail = false;
 	while(true){

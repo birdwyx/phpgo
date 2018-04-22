@@ -1,5 +1,5 @@
 --TEST--
-Go Select error insuffient parameters
+Go select error insuffient parameters
 
 --FILE--
 <?php

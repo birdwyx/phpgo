@@ -16,7 +16,7 @@ $ch = new Chan(["capacity"=>10]);
 go(function($ch){
 	for($i = 1; $i<=20; $i++){
 		echo "push $i:\n";
-		$ch->Push($i);
+		$ch->push($i);
 	}
 },$ch);
 
@@ -24,7 +24,7 @@ go(function($ch){
 	$i = 1;
 	while($i <= 20){
 		echo "pop for the $i time:\n";
-		var_dump($ch->Pop());
+		var_dump($ch->pop());
 		$i++;
 	}
 },$ch);

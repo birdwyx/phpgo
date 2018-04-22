@@ -1,5 +1,5 @@
 --TEST--
-Go Goid
+Go goid
 
 --SKIPIF--
 
@@ -16,17 +16,17 @@ function subtc($seq){
 subtc(1);
 
 go(function(){
-	assert(Runtime::Goid() == 1);
-	//var_dump(Runtime::Goid());
+	assert(Runtime::goid() == 1);
+	//var_dump(Runtime::goid());
 });
 
 go(function(){
-	assert(Runtime::Goid() == 2);
-	//var_dump(Runtime::Goid());
+	assert(Runtime::goid() == 2);
+	//var_dump(Runtime::goid());
 });
 
-assert(Runtime::Goid() == 0);
-//var_dump(Runtime::Goid());
+assert(Runtime::goid() == 0);
+//var_dump(Runtime::goid());
 
 Scheduler::join();
 

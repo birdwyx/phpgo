@@ -1,5 +1,5 @@
 --TEST--
-Go Select invalid case type
+Go select invalid case type
 
 --FILE--
 <?php

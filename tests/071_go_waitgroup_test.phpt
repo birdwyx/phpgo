@@ -17,17 +17,17 @@ assert(!empty($wg));
 
 go(function() use($wg){
 	echo "go 0: wait\n";
-	$wg->Wait();
+	$wg->wait();
 	echo "go 0: wait done\n";
 });
 
 echo "add 10 to wg\n";
-$wg->Add(10);
+$wg->add(10);
 
 for($i=0;$i<10;$i++){
 	go(function() use($wg, $i){
 		echo "go $i: done\n";
-		$wg->Done();
+		$wg->done();
 	});
 }
 

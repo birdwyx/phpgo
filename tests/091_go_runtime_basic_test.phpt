@@ -14,18 +14,18 @@ subtc(1);
 
 go(function(){
 	echo "go 1: ";
-	echo "NumGoroutine: " . Runtime::NumGoroutine() .PHP_EOL;
+	echo "numGoroutine: " . Runtime::numGoroutine() .PHP_EOL;
 });
 
 go(function(){
 	usleep(10*1000);
 	echo "go 2: ";
-	echo "NumGoroutine: " . Runtime::NumGoroutine() .PHP_EOL;
+	echo "numGoroutine: " . Runtime::numGoroutine() .PHP_EOL;
 });
 
 
 go(function(){
-	Runtime::Gosched();
+	Runtime::gosched();
 	echo "go 3\n";
 });
 
@@ -37,19 +37,19 @@ Scheduler::run();
 Scheduler::run();
 Scheduler::run();
 
-echo "NumGoroutine:" . Runtime::NumGoroutine() .PHP_EOL;
+echo "numGoroutine:" . Runtime::numGoroutine() .PHP_EOL;
 
 Scheduler::join();
-echo "NumGoroutine:" . Runtime::NumGoroutine() .PHP_EOL;
+echo "numGoroutine:" . Runtime::numGoroutine() .PHP_EOL;
 
 
 ?>
 --EXPECT--
 SUB-TC: #1
-go 1: NumGoroutine: 4
+go 1: numGoroutine: 4
 go 4
 go 3
-NumGoroutine:1
-go 2: NumGoroutine: 1
-NumGoroutine:0
+numGoroutine:1
+go 2: numGoroutine: 1
+numGoroutine:0
 

@@ -46,7 +46,7 @@ while(true){
 	if($run>0)
 		echo "^run $run tasks\n";
 	
-	if(Runtime::NumGoroutine() ===0 )
+	if(Runtime::numGoroutine() ===0 )
 		break;
 }
 
