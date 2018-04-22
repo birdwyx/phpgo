@@ -3,7 +3,7 @@ Go named function
 
 --FILE--
 <?php
-use \go\Scheduler;
+use \Go\Scheduler;
 
 function f(){
 	echo "Hello World\n";

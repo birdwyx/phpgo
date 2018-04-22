@@ -3,8 +3,8 @@ Go select read write default
 
 --FILE--
 <?php
-use \go\Chan;
-use \go\Scheduler;
+use \Go\Chan;
+use \Go\Scheduler;
 
 function subtc($seq){
     echo "SUB-TC: #$seq\n";

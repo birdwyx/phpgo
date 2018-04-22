@@ -3,8 +3,8 @@ Go Waitgroup test
 
 --FILE--
 <?php
-use \go\Waitgroup;
-use \go\Scheduler;
+use \Go\Waitgroup;
+use \Go\Scheduler;
 
 function subtc($seq){
     echo "SUB-TC: #$seq\n";

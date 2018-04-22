@@ -1,9 +1,9 @@
 --TEST--
-Concurrent 64k go routines (192M memory limit ~ 3K per go)
+Go concurrent 64k routines (192M memory limit ~ 3K per go)
 
 --FILE--
 <?php
-use \go\Scheduler;
+use \Go\Scheduler;
 
 ini_set("memory_limit", "192M");
 
@@ -42,7 +42,7 @@ for($i=0; $i<64*1024;$i++){
 	}, $i);
 }
 
-Scheduler::RunJoinAll();
+Scheduler::join();
 
 echo "the only output\n"
 

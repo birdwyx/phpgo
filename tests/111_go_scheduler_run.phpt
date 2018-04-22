@@ -6,9 +6,9 @@ Go scheduler run
 
 --FILE--
 <?php
-use \go\Mutex;
-use \go\Scheduler;
-use \go\Runtime;
+use \Go\Mutex;
+use \Go\Scheduler;
+use \Go\Runtime;
 
 function subtc($seq){
     echo "SUB-TC: #$seq\n";

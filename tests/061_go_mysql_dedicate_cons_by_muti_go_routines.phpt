@@ -19,8 +19,8 @@ Go mysql dedicated PDO connection by mutilple go routines
 ?>
 --FILE--
 <?php
-use \go\Chan;
-use \go\Scheduler;
+use \Go\Chan;
+use \Go\Scheduler;
 
 function subtc($seq){
     echo "SUB-TC: #$seq\n";

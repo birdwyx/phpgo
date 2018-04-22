@@ -3,8 +3,8 @@ Go Mutex recursively lock
 
 --FILE--
 <?php
-use \go\Mutex;
-use \go\Scheduler;
+use \Go\Mutex;
+use \Go\Scheduler;
 
 function subtc($seq){
     echo "SUB-TC: #$seq\n";

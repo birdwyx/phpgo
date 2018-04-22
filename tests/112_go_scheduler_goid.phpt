@@ -6,8 +6,8 @@ Go goid
 
 --FILE--
 <?php
-use \go\Scheduler;
-use \go\Runtime;
+use \Go\Scheduler;
+use \Go\Runtime;
 
 function subtc($seq){
     echo "SUB-TC: #$seq\n";

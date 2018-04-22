@@ -3,7 +3,7 @@ Go closure with 256 args (deemed to be FAIL)
 
 --FILE--
 <?php
-use \go\Scheduler;
+use \Go\Scheduler;
 
 function subtc($seq){
     echo "SUB-TC: #$seq\n";

@@ -3,9 +3,9 @@ Go select read write default timer
 
 --FILE--
 <?php
-use \go\Chan;
-use \go\Timer;
-use \go\Scheduler;
+use \Go\Chan;
+use \Go\Timer;
+use \Go\Scheduler;
 
 function subtc($seq){
     echo "SUB-TC: #$seq\n";

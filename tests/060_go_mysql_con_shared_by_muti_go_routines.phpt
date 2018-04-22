@@ -19,8 +19,8 @@ Go PDO connection shared by mutilple go routines (deemed to be FAIL)
 ?>
 --FILE--
 <?php
-use \go\Chan;
-use \go\Scheduler;
+use \Go\Chan;
+use \Go\Scheduler;
 
 function subtc($seq){
     echo "SUB-TC: #$seq\n";

@@ -6,8 +6,8 @@ Go routines with swoole server
 
 --FILE--
 <?php
-use \go\Mutex;
-use \go\Scheduler;
+use \Go\Mutex;
+use \Go\Scheduler;
 use \Swoole\Event;
 
 function subtc($seq){
@@ -30,7 +30,7 @@ $http->on('request', function ($request, $response) {
 		$response->end("<h1>Hello Swoole. #".rand(1000, 9999)."</h1>\n");
 	});
 	
-	//Scheduler::RunOnce();
+	//Scheduler::run();
 });
 
 $http->on('WorkerStart', function($serv, $worker_id) {
@@ -44,14 +44,14 @@ $http->on('WorkerStart', function($serv, $worker_id) {
 		swoole_timer_tick(
 			10, 
 			function($timer_id, $param){
-				//Scheduler::RunOnce();
+				//Scheduler::run();
 			},
 			"param"
 		);
 		
 		Event::cycle( function () {
 			$pass = 0;
-			while( ($run = Scheduler::RunOnce()) && $pass++ < 200 );
+			while( ($run = Scheduler::run()) && $pass++ < 200 );
 		});
 		
 	} else {
@@ -63,7 +63,7 @@ $http->on('WorkerStart', function($serv, $worker_id) {
 swoole_timer_tick(
     10, 
     function($timer_id, $param){
-	    Scheduler::RunOnce();
+	    Scheduler::run();
     },
     "param"
 );*/

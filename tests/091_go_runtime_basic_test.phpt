@@ -3,8 +3,8 @@ Go runtime basic test
 
 --FILE--
 <?php
-use \go\Runtime;
-use \go\Scheduler;
+use \Go\Runtime;
+use \Go\Scheduler;
 
 function subtc($seq){
     echo "SUB-TC: #$seq\n";

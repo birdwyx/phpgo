@@ -6,9 +6,9 @@ Go super globals inherits
 
 --FILE--
 <?php
-use \go\Chan;
-use \go\Scheduler;
-use \go\Runtime;
+use \Go\Chan;
+use \Go\Scheduler;
+use \Go\Runtime;
 
 function subtc($seq){
     echo "SUB-TC: #$seq\n";

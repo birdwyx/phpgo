@@ -1,9 +1,9 @@
 --TEST--
-A hello world go routine
+Go a hello world routine
 
 --FILE--
 <?php
-use \go\Scheduler;
+use \Go\Scheduler;
 
 go(function(){
 	echo "Hello World";

@@ -1,9 +1,9 @@
 --TEST--
-Nested go routines of 10240 levels
+Go nested routines of 10240 levels
 
 --FILE--
 <?php
-use \go\Scheduler;
+use \Go\Scheduler;
 
 function subtc($seq){
     echo "SUB-TC: #$seq\n";

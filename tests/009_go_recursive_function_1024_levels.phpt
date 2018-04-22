@@ -3,7 +3,7 @@ Go recursive function with 1024 nested levels
 
 --FILE--
 <?php
-use \go\Scheduler;
+use \Go\Scheduler;
 
 function subtc($seq){
     echo "SUB-TC: #$seq\n";
