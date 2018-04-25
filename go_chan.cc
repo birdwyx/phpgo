@@ -99,6 +99,12 @@ void GoChan::Destroy(void* handle){
 			map_name_to_chinfo.erase(chinfo->name);
 		}
 		if(chinfo->chan){
+			// pop all data from channel, and free them
+			ChannelData* cd = nullptr;
+			while( ( (co_chan<ChannelData*>*)(chinfo->chan) )->TryPop(cd) ){
+				if(cd) delete cd;
+			}
+			
 			delete (co_chan<ChannelData*>*)(chinfo->chan);
 		}
 		delete chinfo;
