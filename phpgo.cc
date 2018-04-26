@@ -27,9 +27,15 @@
 #include "php_ini.h"
 #include "ext/standard/info.h"*/
 
+
 #include "stdinc.h"
 #include <signal.h>       /* for signal */  
-#include <execinfo.h>     /* for backtrace() */  
+#include <execinfo.h>     /* for backtrace() */
+#include <libgo/coroutine.h>
+
+/*remove the libgo go() included from the coroutine.h since 
+we'll also have function go defined later on in this file*/
+#undef go  
 
 #include "php_phpgo.h"
 #include "go.h"
@@ -42,6 +48,7 @@
 #include "go_select.h"
 #include "zend_interfaces.h"
 #include "defer.h"
+
 
 /* If you declare any globals in php_phpgo.h uncomment this:*/
 ZEND_DECLARE_MODULE_GLOBALS(phpgo)
@@ -1372,6 +1379,29 @@ PHP_METHOD(Runtime, Goid)
 }
 /* }}} */
 
+/* {{{ */
+#define CREATE_CHANNEL(chan_name, z_chan) \
+static THREAD_LOCAL uint32_t sid = 0; \
+zval *arg1 = nullptr; \
+do{\
+	MAKE_STD_ZVAL(z_chan); \
+    object_init_ex(z_chan, ce_go_chan_ptr); \
+\
+	MAKE_STD_ZVAL(arg1); \
+	array_init(arg1); \
+\
+	sprintf(chan_name, "timer_%d_%d", clock(), sid++); \
+	add_assoc_string_ex(arg1, "name", sizeof("name"), chan_name, 1); \
+\
+	add_assoc_long_ex(arg1, "capacity", sizeof("capacity"), 1 );  \
+	add_assoc_bool_ex(arg1, "copy", sizeof("copy"), 1 ); \
+\
+	zend_call_method_with_1_params(&z_chan, ce_go_chan_ptr, \
+		&ce_go_chan_ptr->constructor,"__construct", NULL, arg1); \
+	zval_ptr_dtor(&arg1); \
+}while(0)
+/* }}} */
+
 /* {{{ proto Chan Timer::tick( $micro_seconds )
  * start a periodic timer with interval $micro_seconds micro seconds
  * once timer expires, an integer 1 is written to the channel as returned
@@ -1387,33 +1417,17 @@ PHP_METHOD(Timer, Tick)
 		RETURN_NULL();
     }
 	
-	zval* z_chan = nullptr;
-	MAKE_STD_ZVAL(z_chan);
-    object_init_ex(z_chan, ce_go_chan_ptr);
-
-	zval *arg1 = nullptr;
-	MAKE_STD_ZVAL(arg1);
-	ZVAL_LONG(arg1, 1);
+	char chan_name[32]; zval* z_chan = nullptr;
+	CREATE_CHANNEL(chan_name, z_chan);
 	
-	//printf("select, about to call Selector constructor selector: %p\n", selector);
-	zend_call_method_with_1_params(&z_chan, ce_go_chan_ptr, &ce_go_chan_ptr->constructor, "__construct", NULL, arg1);
-	zval_ptr_dtor(&arg1);
-	
-	auto z_handler = zend_read_property(ce_go_chan_ptr, z_chan, "handle", sizeof("handle")-1, true TSRMLS_CC);
-	
-	if(!z_handler)
+	if( !GoTime::CreateTimer(chan_name, micro_seconds * GoTime::Microsecond, true) ){
+		zval_ptr_dtor(&z_chan);
 		RETURN_NULL();
-	
-	void* chan = (void*)Z_LVAL_P(z_handler);
-	if(!chan)
-		RETURN_NULL();
-	
-	GoTimer::Tick(z_chan, chan, micro_seconds TSRMLS_CC);
+	}
 	
 	RETURN_ZVAL(z_chan, 1, 1);
 }
 /* }}} */
-
 
 /* {{{ proto Chan Timer::after($micro_seconds)
  * start a one-time timer which will expire $micro_seconds later
@@ -1423,35 +1437,18 @@ PHP_METHOD(Timer, Tick)
 PHP_METHOD(Timer, After)
 {
 	//printf("Timer::After\n");
-	
+
 	uint64_t micro_seconds  = 0;
 	if( zend_parse_parameters(ZEND_NUM_ARGS() TSRMLS_CC, "l", (long*)&micro_seconds) == FAILURE ){
         zend_error(E_ERROR, "phpgo: Timer::tick: getting parameter failure");
 		RETURN_NULL();
     }
-	
-	zval* z_chan = nullptr;
-	MAKE_STD_ZVAL(z_chan);
-    object_init_ex(z_chan, ce_go_chan_ptr);
 
-	zval *arg1 = nullptr;
-	MAKE_STD_ZVAL(arg1);
-	ZVAL_LONG(arg1, 1);
+	char chan_name[32]; zval* z_chan = nullptr;
+	CREATE_CHANNEL(chan_name, z_chan);
 	
-	//printf("select, about to call Selector constructor selector: %p\n", selector);
-	zend_call_method_with_1_params(&z_chan, ce_go_chan_ptr, &ce_go_chan_ptr->constructor, "__construct", NULL, arg1);
-	zval_ptr_dtor(&arg1);
-	
-	auto z_handler = zend_read_property(ce_go_chan_ptr, z_chan, "handle", sizeof("handle")-1, true TSRMLS_CC);
-	
-	if(!z_handler)
+	if( !GoTime::CreateTimer(chan_name, micro_seconds * GoTime::Microsecond, false) )
 		RETURN_NULL();
-	
-	void* chan = (void*)Z_LVAL_P(z_handler);
-	if(!chan)
-		RETURN_NULL();
-	
-	GoTimer::After(z_chan, chan, micro_seconds TSRMLS_CC);
 	
 	RETURN_ZVAL(z_chan, 1, 1);
 }

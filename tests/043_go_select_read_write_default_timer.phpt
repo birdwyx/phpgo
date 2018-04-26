@@ -34,7 +34,7 @@ go(function() use($done){
 
 });
 
-Scheduler::join();
+Scheduler::join(1);
 
 subtc(2);
 $done = new Chan(1);
@@ -48,7 +48,7 @@ go(function() use($done){
 	$sel = select(
 		[ 'case', Timer::tick(100*1000), /*"->", &$dummy, */ function($v) use($done, &$begin, &$i){
 			assert( $v===1 );
-			assert( ($diff = abs( microtime(true)-$begin-0.1 )) < 0.005 );
+			assert( ($diff = abs( microtime(true)-$begin-0.1 )) < 0.05 );
 			//echo $diff . " ";
 			$begin = microtime(true);
 			
@@ -65,11 +65,11 @@ go(function() use($done){
 	
 	echo "test completed\n";
 	
-	exit;
+	//exit;
 
 });
 
-Scheduler::join();
+Scheduler::join(1);
 
 ?>
 --EXPECT--
