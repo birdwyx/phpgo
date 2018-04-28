@@ -88,8 +88,9 @@ PHP_METHOD(Selector,  Select);
 PHP_METHOD(Selector,  Loop);
 PHP_METHOD(Selector,  __destruct);
 
-PHP_METHOD(Timer,     Tick);
-PHP_METHOD(Timer,     After);
+PHP_METHOD(Time,      Tick);
+PHP_METHOD(Time,      After);
+PHP_METHOD(Time,      Sleep);
 
 /* 
   	Declare any global variables you may need between the BEGIN
@@ -98,6 +99,7 @@ PHP_METHOD(Timer,     After);
 
 ZEND_BEGIN_MODULE_GLOBALS(phpgo)
 	bool phpgo_initialized = false;
+	uint32_t running_internal_go_routines = 0;
 ZEND_END_MODULE_GLOBALS(phpgo)
 
 

@@ -44,7 +44,7 @@ we'll also have function go defined later on in this file*/
 #include "go_mutex.h"
 #include "go_runtime.h"
 #include "go_wait_group.h"
-#include "go_timer.h"
+#include "go_time.h"
 #include "go_select.h"
 #include "zend_interfaces.h"
 #include "defer.h"
@@ -61,7 +61,7 @@ zend_class_entry  ce_go_mutex,     *ce_go_mutex_ptr;
 zend_class_entry  ce_go_wait_group,*ce_go_wait_group_ptr;
 zend_class_entry  ce_go_scheduler, *ce_go_scheduler_ptr;
 zend_class_entry  ce_go_selector,  *ce_go_selector_ptr;
-zend_class_entry  ce_go_timer,     *ce_go_timer_ptr;
+zend_class_entry  ce_go_time,      *ce_go_time_ptr;
 zend_class_entry  ce_go_runtime,   *ce_go_runtime_ptr;
 
 /* {{{ arginfo_go_chan_push[]
@@ -80,12 +80,16 @@ ZEND_BEGIN_ARG_INFO_EX(arginfo_go_selector_ctor, 0, 0, 1)
 	ZEND_ARG_INFO(0, handle)
 ZEND_END_ARG_INFO()
 
-ZEND_BEGIN_ARG_INFO_EX(arginfo_go_timer_tick, 0, 0, 1)
-	ZEND_ARG_INFO(0, micro_seconds)
+ZEND_BEGIN_ARG_INFO_EX(arginfo_go_time_tick, 0, 0, 1)
+	ZEND_ARG_INFO(0, nanoseconds)
 ZEND_END_ARG_INFO()
 
-ZEND_BEGIN_ARG_INFO_EX(arginfo_go_timer_after, 0, 0, 1)
-	ZEND_ARG_INFO(0, micro_seconds)
+ZEND_BEGIN_ARG_INFO_EX(arginfo_go_time_after, 0, 0, 1)
+	ZEND_ARG_INFO(0, nanoseconds)
+ZEND_END_ARG_INFO()
+
+ZEND_BEGIN_ARG_INFO_EX(arginfo_go_time_sleep, 0, 0, 1)
+	ZEND_ARG_INFO(0, nanoseconds)
 ZEND_END_ARG_INFO()
 
 ZEND_BEGIN_ARG_INFO_EX(arginfo_go_selector_loop, 0, 0, 1)
@@ -159,9 +163,10 @@ const zend_function_entry go_selector_methods[] = {
 	PHP_FE_END	/* Must be the last line */
 };
 
-const zend_function_entry go_timer_methods[] = {
-	PHP_ME(Timer,          Tick,        arginfo_go_timer_tick,      ZEND_ACC_PUBLIC|ZEND_ACC_STATIC)
-	PHP_ME(Timer,          After,       arginfo_go_timer_after,     ZEND_ACC_PUBLIC|ZEND_ACC_STATIC)
+const zend_function_entry go_time_methods[] = {
+	PHP_ME(Time,           Tick,        arginfo_go_time_tick,      ZEND_ACC_PUBLIC|ZEND_ACC_STATIC)
+	PHP_ME(Time,           After,       arginfo_go_time_after,     ZEND_ACC_PUBLIC|ZEND_ACC_STATIC)
+	PHP_ME(Time,           Sleep,       arginfo_go_time_sleep,     ZEND_ACC_PUBLIC|ZEND_ACC_STATIC)
 	PHP_FE_END	/* Must be the last line */
 };
 
@@ -213,6 +218,7 @@ PHP_INI_END()
 static void php_phpgo_init_globals(zend_phpgo_globals *phpgo_globals)
 {
 	phpgo_globals->phpgo_initialized = false;
+	phpgo_globals->running_internal_go_routines = 0;
 }
 
 /* }}} */
@@ -232,7 +238,7 @@ PHP_MINIT_FUNCTION(phpgo)
 	INIT_NS_CLASS_ENTRY(ce_go_wait_group,PHPGO_NS, "WaitGroup", go_wait_group_methods); 
 	INIT_NS_CLASS_ENTRY(ce_go_scheduler, PHPGO_NS, "Scheduler", go_scheduler_methods); 
 	INIT_NS_CLASS_ENTRY(ce_go_selector,  PHPGO_NS, "Selector",  go_selector_methods); 
-	INIT_NS_CLASS_ENTRY(ce_go_timer,     PHPGO_NS, "Timer",     go_timer_methods); 
+	INIT_NS_CLASS_ENTRY(ce_go_time,      PHPGO_NS, "Time",      go_time_methods); 
 	INIT_NS_CLASS_ENTRY(ce_go_runtime,   PHPGO_NS, "Runtime",   go_runtime_methods); 
 	
 	ce_go_chan_ptr      = zend_register_internal_class(&ce_go_chan TSRMLS_CC);
@@ -240,11 +246,18 @@ PHP_MINIT_FUNCTION(phpgo)
 	ce_go_wait_group_ptr= zend_register_internal_class(&ce_go_wait_group TSRMLS_CC);
 	ce_go_scheduler_ptr = zend_register_internal_class(&ce_go_scheduler TSRMLS_CC);
 	ce_go_selector_ptr  = zend_register_internal_class(&ce_go_selector TSRMLS_CC);
-	ce_go_timer_ptr     = zend_register_internal_class(&ce_go_timer TSRMLS_CC);
+	ce_go_time_ptr      = zend_register_internal_class(&ce_go_time TSRMLS_CC);
 	ce_go_runtime_ptr   = zend_register_internal_class(&ce_go_runtime TSRMLS_CC);
     
 	//zend_declare_property_long(ce_go_chan_ptr,"handle",  strlen("handle"),  -1, ZEND_ACC_PUBLIC TSRMLS_CC);
 	//zend_declare_property_long(ce_go_chan_ptr,"capacity",strlen("capacity"), 0, ZEND_ACC_PUBLIC TSRMLS_CC);
+	
+	zend_declare_class_constant_long(ce_go_time_ptr, "Nanosecond",  sizeof("Nanosecond")-1,  GoTime::Nanosecond   TSRMLS_CC);
+	zend_declare_class_constant_long(ce_go_time_ptr, "Microsecond", sizeof("Microsecond")-1, GoTime::Microsecond  TSRMLS_CC);
+	zend_declare_class_constant_long(ce_go_time_ptr, "Millisecond", sizeof("Millisecond")-1, GoTime::Millisecond  TSRMLS_CC);
+	zend_declare_class_constant_long(ce_go_time_ptr, "Second",      sizeof("Second")-1,      GoTime::Second       TSRMLS_CC);
+	zend_declare_class_constant_long(ce_go_time_ptr, "Minute",      sizeof("Minute")-1,      GoTime::Minute       TSRMLS_CC);
+	zend_declare_class_constant_long(ce_go_time_ptr, "Hour",        sizeof("Hour")-1,        GoTime::Hour         TSRMLS_CC);
 	
 	return SUCCESS;
 }
@@ -1336,7 +1349,12 @@ PHP_METHOD(Scheduler, Join)
 		}
 	}
 	
-	GoScheduler::Join( (uint32_t)tasks_left );
+	while( phpgo_go_runtime_num_goroutine() > 
+	       (uint32_t)tasks_left + PHPGO_G(running_internal_go_routines)
+	){
+	    GoScheduler::Run();
+	}
+	
 	RETURN_TRUE;
 }
 /* }}} */
@@ -1402,54 +1420,85 @@ do{\
 }while(0)
 /* }}} */
 
-/* {{{ proto Chan Timer::tick( $micro_seconds )
- * start a periodic timer with interval $micro_seconds micro seconds
+/* {{{ proto Chan Time::tick( $nanoseconds )
+ * start a periodic timer with interval $nanoseconds micro seconds
  * once timer expires, an integer 1 is written to the channel as returned
  * by this function
  */
-PHP_METHOD(Timer, Tick)
+PHP_METHOD(Time, Tick)
 {
-	//printf("Timer::Tick\n");
+	//printf("Time::Tick\n");
 	
-	uint64_t micro_seconds  = 0;
-	if( zend_parse_parameters(ZEND_NUM_ARGS() TSRMLS_CC, "l", (long*)&micro_seconds) == FAILURE ){
-        zend_error(E_ERROR, "phpgo: Timer::tick: getting parameter failure");
+	uint64_t nanoseconds  = 0;
+	if( zend_parse_parameters(ZEND_NUM_ARGS() TSRMLS_CC, "l", (long*)&nanoseconds) == FAILURE ){
+        zend_error(E_ERROR, "phpgo: Time::tick: getting parameter failure");
 		RETURN_NULL();
     }
 	
 	char chan_name[32]; zval* z_chan = nullptr;
 	CREATE_CHANNEL(chan_name, z_chan);
 	
-	if( !GoTime::CreateTimer(chan_name, micro_seconds * GoTime::Microsecond, true) ){
+	bool go_creation = false;
+	if( !GoTime::CreateTimer(chan_name, nanoseconds, true, go_creation) ){
 		zval_ptr_dtor(&z_chan);
 		RETURN_NULL();
+	}
+	if( go_creation ){
+		++PHPGO_G(running_internal_go_routines);
 	}
 	
 	RETURN_ZVAL(z_chan, 1, 1);
 }
 /* }}} */
 
-/* {{{ proto Chan Timer::after($micro_seconds)
- * start a one-time timer which will expire $micro_seconds later
+/* {{{ proto Chan Time::after($nanoseconds)
+ * start a one-time timer which will expire $nanoseconds later
  * once timer expires, an integer 1 is written to the channel as returned
  * by this function
  */
-PHP_METHOD(Timer, After)
+PHP_METHOD(Time, After)
 {
-	//printf("Timer::After\n");
+	//printf("Time::After\n");
 
-	uint64_t micro_seconds  = 0;
-	if( zend_parse_parameters(ZEND_NUM_ARGS() TSRMLS_CC, "l", (long*)&micro_seconds) == FAILURE ){
-        zend_error(E_ERROR, "phpgo: Timer::tick: getting parameter failure");
+	uint64_t nanoseconds  = 0;
+	if( zend_parse_parameters(ZEND_NUM_ARGS() TSRMLS_CC, "l", (long*)&nanoseconds) == FAILURE ){
+        zend_error(E_ERROR, "phpgo: Time::After: getting parameter failure");
 		RETURN_NULL();
     }
 
 	char chan_name[32]; zval* z_chan = nullptr;
 	CREATE_CHANNEL(chan_name, z_chan);
 	
-	if( !GoTime::CreateTimer(chan_name, micro_seconds * GoTime::Microsecond, false) )
+	bool go_creation = false;
+	if( !GoTime::CreateTimer(chan_name, nanoseconds, false, go_creation) ){
+		zval_ptr_dtor(&z_chan);
 		RETURN_NULL();
+	}
+	if( go_creation ){
+		++PHPGO_G(running_internal_go_routines);
+	}
 	
 	RETURN_ZVAL(z_chan, 1, 1);
+}
+/* }}} */
+
+/* {{{ proto Chan Time::Sleep($nanoseconds)
+ * start a one-time timer which will expire $nanoseconds later
+ * once timer expires, an integer 1 is written to the channel as returned
+ * by this function
+ */
+PHP_METHOD(Time, Sleep)
+{
+	//printf("Time::Sleep\n");
+
+	uint64_t nanoseconds  = 0;
+	if( zend_parse_parameters(ZEND_NUM_ARGS() TSRMLS_CC, "l", (long*)&nanoseconds) == FAILURE ){
+        zend_error(E_ERROR, "phpgo: Time::Sleep: getting parameter failure");
+		RETURN_NULL();
+    }
+	
+	GoTime::Sleep(nanoseconds);
+	
+	RETURN_BOOL(true);
 }
 /* }}} */

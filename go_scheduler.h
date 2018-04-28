@@ -15,13 +15,14 @@ public:
 		return co_sched.Run();
 	}
 	
+	/* 20180429: not used any more
 	static void Join(uint32_t tasks_left){
 		if (co_sched.IsCoroutine()) {
 			zend_error(E_ERROR, "phpgo: error: join must be called outside a go routine\n");
 			return;
 		}	
 		co_sched.RunUntilNoTask(tasks_left);
-	}
+	}*/
 	
 	static void Loop(){
 		if (co_sched.IsCoroutine()) {

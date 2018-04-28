@@ -62,6 +62,14 @@ public:
 	static const uint64_t Hour        = 60 * Minute;
 	
 public:
-	static bool       CreateTimer(const char* chan_name, uint64_t micro_seconds, bool is_periodic);
+	static bool  CreateTimer(const char* chan_name, uint64_t micro_seconds, 
+	                         bool is_periodic, bool& go_creation);
+	static void  Sleep(uint64_t nanoseconds){
+		if(co_sched.IsCoroutine()){
+			co_sleep(nanoseconds/Millisecond);
+		}else{
+			usleep(nanoseconds/Microsecond);
+		}
+	}
 
 };

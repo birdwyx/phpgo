@@ -4,7 +4,7 @@ Go select read write default timer
 --FILE--
 <?php
 use \Go\Chan;
-use \Go\Timer;
+use \Go\Time;
 use \Go\Scheduler;
 
 function subtc($seq){
@@ -19,7 +19,7 @@ go(function() use($done){
 	$begin = time();
 	$dummy = 0;
 	$sel = select(
-		[ 'case', Timer::after(1000*1000), "->", &$dummy, function($v) use($done, $begin){
+		[ 'case', Time::after(1*Time::Second), "->", &$dummy, function($v) use($done, $begin){
 			assert( $v===1 );
 			assert( time()-$begin == 1 );
 			
@@ -34,7 +34,7 @@ go(function() use($done){
 
 });
 
-Scheduler::join(1);
+Scheduler::join();
 
 subtc(2);
 $done = new Chan(1);
@@ -46,7 +46,7 @@ go(function() use($done){
 	//echo $begin;
 	$dummy = 0;
 	$sel = select(
-		[ 'case', Timer::tick(100*1000), /*"->", &$dummy, */ function($v) use($done, &$begin, &$i){
+		[ 'case', Time::tick(100*Time::Millisecond), /*"->", &$dummy, */ function($v) use($done, &$begin, &$i){
 			assert( $v===1 );
 			assert( ($diff = abs( microtime(true)-$begin-0.1 )) < 0.05 );
 			//echo $diff . " ";
@@ -69,7 +69,7 @@ go(function() use($done){
 
 });
 
-Scheduler::join(1);
+Scheduler::join();
 
 ?>
 --EXPECT--

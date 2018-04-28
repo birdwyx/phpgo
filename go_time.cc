@@ -1,13 +1,16 @@
-#include "go_timer.h"
+#include "stdinc.h"
+#include "php_phpgo.h"
+#include "go_time.h"
 #include "zend_API.h"
 #include "go_chan.h"
 #include <iostream>
 
 THREAD_LOCAL TimerSet GoTime::tls_timer_set;
 
-bool GoTime::CreateTimer(const char* chan_name, uint64_t nano_seconds, bool is_periodic){
+bool GoTime::CreateTimer(const char* chan_name, uint64_t nano_seconds, bool is_periodic, bool& go_creation){
 	static THREAD_LOCAL co_chan<TimerData*>* td_chan = nullptr;
 	
+	go_creation = false;
 	if( !td_chan ){
 		td_chan = new co_chan<TimerData*>(MAX_TIMER_CHAN_CAPACITY);
 		if( !td_chan ) {
@@ -16,6 +19,7 @@ bool GoTime::CreateTimer(const char* chan_name, uint64_t nano_seconds, bool is_p
 		}
 
 		CreateGoRoutine(td_chan); 
+		go_creation = true;
 	}
 	
 	// push the timer data to chan
