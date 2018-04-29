@@ -40,8 +40,8 @@ zval*  phpgo_select(GO_SELECT_CASE* case_array, long case_count TSRMLS_DC){
 					//zval_dtor(case_array[i].value);
 					//INIT_PZVAL_COPY(case_array[i].value, data);
 					//ZVAL_COPY_VALUE(case_array[i].value, data); 
-					REPLACE_ZVAL_VALUE(&case_array[i].value, data, 0);
-					zval_ptr_dtor(&data);					
+					REPLACE_ZVAL_VALUE(&case_array[i].value, data, 1 /*invoke zval_copy_ctor*/);
+						   
 					selected_case = &case_array[i];
 					goto exit_while;
 				}

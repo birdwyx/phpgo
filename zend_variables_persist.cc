@@ -30,7 +30,7 @@
 #include "zend_gc.h"
 #include "defer.h"
 
-
+#ifdef DEBUG
 void zend_hash_display(const HashTable *ht)
 {
 	Bucket *p;
@@ -63,7 +63,7 @@ void zend_hash_display(const HashTable *ht)
 		p = p->pListLast;
 	}
 }
-
+#endif
 
 /*
  persistent zval copy constructor
@@ -93,11 +93,6 @@ ZEND_API void zval_persistent_ptr_ctor(zval** zvalue){
 
 ZEND_API void _zval_persistent_copy_ctor_func(zval *zvalue ZEND_FILE_LINE_DC)
 {
-	//printf("_zval_persistent_copy_ctor_func: zval %p, type = %ld\n",  zvalue, Z_TYPE_P(zvalue));
-	//extern void dump_zval(zval*);
-	//dump_zval(zvalue);
-	//printf("_zval_persistent_copy_ctor_func: zval* = %p, ref = %ld, isref= %ld\n", zvalue, zvalue->refcount__gc, zvalue->is_ref__gc);
-	
 	switch (Z_TYPE_P(zvalue) & IS_CONSTANT_TYPE_MASK) {
 		case IS_RESOURCE: {
 				zend_error(E_ERROR, "duplication of resource type is not allowed in channel operation" );
@@ -112,9 +107,7 @@ ZEND_API void _zval_persistent_copy_ctor_func(zval *zvalue ZEND_FILE_LINE_DC)
 		case IS_STRING:
 			CHECK_ZVAL_STRING_REL(zvalue);
 			if (!IS_INTERNED(zvalue->value.str.val)) {
-				//zvalue->value.str.val = (char *) estrndup_rel(zvalue->value.str.val, zvalue->value.str.len);
 				zvalue->value.str.val = (char *) pestrndup(zvalue->value.str.val, zvalue->value.str.len, 1);
-				//printf("gotten a new str at %p, s=%s\n", zvalue->value.str.val, zvalue->value.str.val);
 			}
 			break;
 		case IS_ARRAY:
@@ -141,16 +134,10 @@ ZEND_API void _zval_persistent_copy_ctor_func(zval *zvalue ZEND_FILE_LINE_DC)
 					return; /* do nothing */
 				}
 				
-				//ALLOC_HASHTABLE_REL(tmp_ht);
 				tmp_ht = (HashTable *) pemalloc_rel(sizeof(HashTable), 1);  //allocate persistently
 				
 				zend_hash_init(tmp_ht, zend_hash_num_elements(original_ht), NULL, ZVAL_PERSISTENT_PTR_DTOR, 1);  //1, init to persistent
 				zvalue->value.ht = tmp_ht;
-				
-				//printf("zend_hash_copy tmp_ht = %p, ht->persistent %d\n", tmp_ht, tmp_ht->persistent);
-				//printf("original_ht-->\n");
-				//zend_hash_display(original_ht);
-				//printf("original_ht<--\n");
 				
 				if( htset->find(original_ht) != htset->end() ){
 					zend_error(E_WARNING, "reference loop exists in array" );
@@ -166,11 +153,6 @@ ZEND_API void _zval_persistent_copy_ctor_func(zval *zvalue ZEND_FILE_LINE_DC)
 				
 				zend_hash_copy(tmp_ht, original_ht, (copy_ctor_func_t)zval_persistent_ptr_ctor, (void *) &tmp, sizeof(zval *));
 				tmp_ht->nNextFreeElement = original_ht->nNextFreeElement;
-				
-				//printf("tmp_ht1-->\n");
-				//zend_hash_display(tmp_ht);
-				//printf("tmp_ht1<--\n");
-
 			}
 			break;
 #if ZEND_EXTENSION_API_NO >= PHP_5_6_API_NO
@@ -282,35 +264,25 @@ ZEND_API void _zval_persistent_to_local_copy_ctor_func(zval *zvalue ZEND_FILE_LI
 */
 
 ZEND_API void zval_persistent_ptr_dtor_wrapper(zval **zval_ptr)
-{
-	//printf("zval_persistent_ptr_dtor zval** = %p\n", zval_ptr);
-	
+{	
 	if( zval_ptr && *zval_ptr ){
 		i_zval_persistent_ptr_dtor(*zval_ptr ZEND_FILE_LINE_CC);
 	}
 	
 	// set the zval pointer to null to avoid a second dtor call
 	*zval_ptr = nullptr;
-	
-	//printf("zval_persistent_ptr_dtor zval** = %p returns\n", zval_ptr);
 }
 
 ZEND_API void _zval_persistent_dtor_func(zval *zvalue ZEND_FILE_LINE_DC)
 {
 	#define STR_PERMENENT_FREE_REL(ptr)     if (ptr && !IS_INTERNED(ptr)) { pefree_rel(ptr,1); }
 	#define FREE_PERMENENT_HASHTABLE(ht)	pefree(ht, 1)
-
-	//printf("_zval_persistent_dtor_func zval* = %p\n", zvalue);
-	//extern void dump_zval(zval*);
-	//dump_zval(zvalue);
 	
 	switch (Z_TYPE_P(zvalue) & IS_CONSTANT_TYPE_MASK) {
 		case IS_STRING:
 		case IS_CONSTANT:
 			CHECK_ZVAL_STRING_REL(zvalue);
-			//printf("_zval_persistent_dtor_func try to free string: %p, s= %s\n", zvalue->value.str.val, zvalue->value.str.val);
 			STR_PERMENENT_FREE_REL(zvalue->value.str.val);
-			//printf("after free  string\n");
 			break;
 		case IS_ARRAY:
 #if ZEND_EXTENSION_API_NO <= PHP_5_5_API_NO
@@ -318,8 +290,6 @@ ZEND_API void _zval_persistent_dtor_func(zval *zvalue ZEND_FILE_LINE_DC)
 #endif
 			{
 				TSRMLS_FETCH();
-					//printf("_zval_persistent_dtor_func try to free ht: %p\n", zvalue->value.ht);
-					//zend_hash_display(zvalue->value.ht);
 					
 				if (zvalue->value.ht && (zvalue->value.ht != &EG(symbol_table))) {
 					/* break possible cycles */
@@ -364,6 +334,4 @@ ZEND_API void _zval_persistent_dtor_func(zval *zvalue ZEND_FILE_LINE_DC)
 			return;
 			break;
 	}
-	
-	//printf("_zval_persistent_dtor_func returns\n");
 }

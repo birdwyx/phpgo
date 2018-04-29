@@ -7,7 +7,12 @@
 
 THREAD_LOCAL TimerSet GoTime::tls_timer_set;
 
-bool GoTime::CreateTimer(const char* chan_name, uint64_t nano_seconds, bool is_periodic, bool& go_creation){
+bool GoTime::CreateTimer(
+	const char* chan_name,
+	uint64_t    nano_seconds, 
+    bool        is_periodic,
+	bool&       go_creation
+){
 	static THREAD_LOCAL co_chan<TimerData*>* td_chan = nullptr;
 	
 	go_creation = false;
@@ -26,7 +31,6 @@ bool GoTime::CreateTimer(const char* chan_name, uint64_t nano_seconds, bool is_p
 	auto td = new TimerData(chan_name, nano_seconds, is_periodic);
 	*td_chan << td;
 	
-	//cout << chan_name << "/" << nano_seconds << "/" << is_periodic << "created" << endl;
 	return true;
 }
 
@@ -49,17 +53,23 @@ void GoTime::CreateGoRoutine( co_chan<TimerData*>* td_chan ){
 					}
 				}; // will defer work in while?? will need to confirm
 
-				timer_chan = GoChan::Create(1, td->chan_name, strlen(td->chan_name), true /*copy*/);
+				timer_chan = GoChan::Create(1, td->chan_name, strlen(td->chan_name), true /*copy=true*/);
 				if(!timer_chan){
 					zend_error(E_WARNING, "faile to get channel for timer %s", td->chan_name);
 					continue;
 				}
 				//GoChan::Close(timer_chan); // close chan to inform timer creator
 				
-				TSRMLS_FETCH();
+				//return the current time,in the same format as microtime()
+				struct timeval tp = {0}; char str[36];
+				gettimeofday(&tp, NULL);
+				snprintf(str, 32, "%.8F %ld", tp.tv_usec / 1000000.00, tp.tv_sec);
 				
+				TSRMLS_FETCH();
 				MAKE_STD_ZVAL(z);
-				ZVAL_LONG(z,1);
+				ZVAL_STRING(z,str,1);
+				//ZVAL_LONG(z,1);
+				
 				if( !GoChan::TryPush(timer_chan, z TSRMLS_CC) ){
 					zend_error(E_WARNING, "faile to activate timer %s on expiry: push to timer channel failed", td->chan_name);
 					continue;
@@ -73,26 +83,15 @@ void GoTime::CreateGoRoutine( co_chan<TimerData*>* td_chan ){
 			
 			usleep( 10*1000 );  // sleep for a 10ms
 		}
-		cout << endl;
 	};
 }
 
 void GoTime::PlaceTimer(TimerData* td){
-	
 	td->expire_tick = Clock() + td->delta;;
-	tls_timer_set.insert(td);
-	/*
-	cout << "placetimer:"
-	     << td->chan_name   << "/" << td->delta << "/"
-		 << td->is_periodic << "/" << td->expire_tick << " placed, tick:"
-		 << Clock()  <<endl;
-	printf("PlaceTimer count: %d\n", tls_timer_set.size());
-	*/
-		
+	tls_timer_set.insert(td);		
 }
 
 TimerData* GoTime::PopExpired(){
-	//printf("popexpired count: %d\n", tls_timer_set.size());
 	auto it = tls_timer_set.begin();
 	if( it == tls_timer_set.end() )
 		return nullptr;
