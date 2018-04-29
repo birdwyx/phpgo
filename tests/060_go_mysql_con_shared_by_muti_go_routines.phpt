@@ -2,7 +2,10 @@
 Go PDO connection shared by mutilple go routines (deemed to be FAIL)
 
 --SKIPIF-- 
-<?php   
+<?php  
+	echo "skip"; 
+	return;
+	
 	if( !class_exists ("PDO") ){
 		echo "skip\n";
 	}else{

@@ -46,8 +46,8 @@ zval*  phpgo_select(GO_SELECT_CASE* case_array, long case_count TSRMLS_DC){
 					goto exit_while;
 				}
 			}else if(case_array[i].op == GO_CASE_OP_WRITE){
-				auto ready = GoChan::TryPush(chinfo, case_array[i].value TSRMLS_CC);				
-				if(ready){
+				auto rc = GoChan::TryPush(chinfo, case_array[i].value TSRMLS_CC);				
+				if( rc==GoChan::RCode::success ){
 					zval_add_ref(&case_array[i].value);
 					selected_case = &case_array[i];
 					goto exit_while;

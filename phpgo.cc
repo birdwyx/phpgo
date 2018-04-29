@@ -252,12 +252,12 @@ PHP_MINIT_FUNCTION(phpgo)
 	//zend_declare_property_long(ce_go_chan_ptr,"handle",  strlen("handle"),  -1, ZEND_ACC_PUBLIC TSRMLS_CC);
 	//zend_declare_property_long(ce_go_chan_ptr,"capacity",strlen("capacity"), 0, ZEND_ACC_PUBLIC TSRMLS_CC);
 	
-	zend_declare_class_constant_long(ce_go_time_ptr, "Nanosecond",  sizeof("Nanosecond")-1,  GoTime::Nanosecond   TSRMLS_CC);
-	zend_declare_class_constant_long(ce_go_time_ptr, "Microsecond", sizeof("Microsecond")-1, GoTime::Microsecond  TSRMLS_CC);
-	zend_declare_class_constant_long(ce_go_time_ptr, "Millisecond", sizeof("Millisecond")-1, GoTime::Millisecond  TSRMLS_CC);
-	zend_declare_class_constant_long(ce_go_time_ptr, "Second",      sizeof("Second")-1,      GoTime::Second       TSRMLS_CC);
-	zend_declare_class_constant_long(ce_go_time_ptr, "Minute",      sizeof("Minute")-1,      GoTime::Minute       TSRMLS_CC);
-	zend_declare_class_constant_long(ce_go_time_ptr, "Hour",        sizeof("Hour")-1,        GoTime::Hour         TSRMLS_CC);
+	zend_declare_class_constant_long(ce_go_time_ptr, "NANOSECOND",  sizeof("NANOSECOND")-1,  GoTime::Nanosecond   TSRMLS_CC);
+	zend_declare_class_constant_long(ce_go_time_ptr, "MICROSECOND", sizeof("MICROSECOND")-1, GoTime::Microsecond  TSRMLS_CC);
+	zend_declare_class_constant_long(ce_go_time_ptr, "MILLISECOND", sizeof("MILLISECOND")-1, GoTime::Millisecond  TSRMLS_CC);
+	zend_declare_class_constant_long(ce_go_time_ptr, "SECOND",      sizeof("SECOND")-1,      GoTime::Second       TSRMLS_CC);
+	zend_declare_class_constant_long(ce_go_time_ptr, "MINUTE",      sizeof("MINUTE")-1,      GoTime::Minute       TSRMLS_CC);
+	zend_declare_class_constant_long(ce_go_time_ptr, "HOUR",        sizeof("HOUR")-1,        GoTime::Hour         TSRMLS_CC);
 	
 	return SUCCESS;
 }
@@ -410,12 +410,13 @@ PHP_MINFO_FUNCTION(phpgo)
 		RETURN_FALSE;
 	
 	auto lchan = Z_LVAL_P(chan);
-	void* ch = GoChan::Push( (void*)lchan, z TSRMLS_CC);
+	auto rc    = GoChan::Push( (void*)lchan, z TSRMLS_CC);
 	
-	//printf("chan::push %p\n", ch);
+	if( rc==GoChan::RCode::channel_closed ){
+		zend_error(E_WARNING, "phpgo: Chan::push(): try to push to an allready closed channel");
+	}
 	
-	RETURN_TRUE;
-	
+	RETURN_BOOL( rc==GoChan::RCode::success );
  }
  /* }}} */
  
@@ -442,16 +443,23 @@ PHP_MINFO_FUNCTION(phpgo)
 		RETURN_FALSE;
 	
 	auto lchan = Z_LVAL_P(chan);
-	auto ok = GoChan::TryPush( (void*)lchan, z TSRMLS_CC);
+	auto rc = GoChan::TryPush( (void*)lchan, z TSRMLS_CC);
 	
-	RETURN_BOOL(ok);
+	if( rc==GoChan::RCode::channel_closed ){
+		zend_error(E_WARNING, "phpgo: Chan::tryPush(): try to push to an allready closed channel");
+	}
 	
+	RETURN_BOOL( rc==GoChan::RCode::success );
  }
  /* }}} */
  
  
  /* {{{ proto Chan::pop
   * pop an object from channel, block if no data to read
+  * return 
+  *   data read if available, or
+  *   false on error, or
+  *   NULL if channel closed and no data ready to read
   */
  PHP_METHOD(Chan,Pop){
 	 
@@ -466,9 +474,11 @@ PHP_MINFO_FUNCTION(phpgo)
 	auto lchan = Z_LVAL_P(chan);	
 	zval* z = GoChan::Pop( (void*)lchan );
 	
+	//Pop return false on error
 	if(!z)
-		RETURN_NULL();
+		RETURN_FALSE;
 	
+	//return the zval, or NULL if channel closed and no data ready to read
 	RETURN_ZVAL(z, 1, 1);
  }
  /* }}} */
@@ -479,7 +489,7 @@ PHP_MINFO_FUNCTION(phpgo)
   * return:
   * 	data read if available
   * 	false if channel not ready for reading
-  * 	NULL if channel closed
+  * 	NULL if channel closed and no data ready to read
   */
  PHP_METHOD(Chan,TryPop){
 	 
@@ -494,15 +504,16 @@ PHP_MINFO_FUNCTION(phpgo)
 	auto lchan = Z_LVAL_P(chan);	
 	zval* z = GoChan::TryPop( (void*)lchan );
 	
-	// phpgo_go_chan_try_pop will
-	// return nullptr if not ready
-	// return ZVAL_NULL if closed
-	// otherwise return data read
+	// GoChan::TryPop will
+	//     return nullptr if not ready
+	//     return ZVAL_NULL if closed and no data ready to read
+	//     otherwise return data read
 	
-	// TryPop return false if channel not ready
+	// return false if channel not ready
 	if(!z)
 		RETURN_FALSE;
 	
+	// return the zval, or NULL if channel closed and no data ready to read
 	RETURN_ZVAL(z, 1, 1);
  }
  /* }}} */
@@ -522,8 +533,12 @@ PHP_MINFO_FUNCTION(phpgo)
 		RETURN_FALSE;
 	
 	auto lchan = Z_LVAL_P(chan);	
-	GoChan::Close( (void*)lchan );
+	bool ok = GoChan::Close( (void*)lchan );
+	if(!ok){
+		zend_error(E_WARNING, "phpgo: Chan::close(): try to close an allready closed channel");
+	}
 	
+	RETURN_BOOL(ok); 
  }
  /* }}} */
  

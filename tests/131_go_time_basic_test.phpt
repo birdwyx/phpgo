@@ -14,17 +14,17 @@ function subtc($seq){
 go_debug(0);
 
 subtc(1);
-echo Time::Nanosecond . PHP_EOL;
-echo Time::Microsecond . PHP_EOL;
-echo Time::Millisecond . PHP_EOL;
-echo Time::Second . PHP_EOL;   
-echo Time::Minute . PHP_EOL;     
-echo Time::Hour . PHP_EOL;      
+echo Time::NANOSECOND . PHP_EOL;
+echo Time::MICROSECOND . PHP_EOL;
+echo Time::MILLISECOND . PHP_EOL;
+echo Time::SECOND . PHP_EOL;   
+echo Time::MINUTE . PHP_EOL;     
+echo Time::HOUR . PHP_EOL;      
 
 subtc(2);
 echo "verify sleep of 1 second : outside of go routine: ";
 $t = microtime(true);
-Time::sleep(Time::Second);
+Time::sleep(Time::SECOND);
 $t1 = microtime(true);
 if ( $t1 - $t > 1.001 || $t1 - $t < 0.999 ){
 	echo "should sleep 1 second but slept " 
@@ -35,14 +35,14 @@ if ( $t1 - $t > 1.001 || $t1 - $t < 0.999 ){
 
 subtc(3);
 go(function (){  //go 1
-	$chan = Time::After(1*Time::Second);  //go 2
+	$chan = Time::After(1*Time::SECOND);  //go 2
 	
 	go(function () use($chan){   //go 3
 		$time0 = time(); $mtime0 = microtime();
 		while( true ){
 			$v = $chan->tryPop() ;
 			if( !empty($v) ) break;
-			Time::sleep(20 * Time::Millisecond); // = usleep(20 * 1000);
+			Time::sleep(20 * Time::MILLISECOND); // = usleep(20 * 1000);
 			if( microtime()-$mtime0 > 1.05 ) {
 				echo "timer should expire at 1 second but did not expire until " 
 				     . ( microtime()-$mtime0 ) . " seconds\n"; 
@@ -68,7 +68,7 @@ subtc(4);
 go(function (){  //go 1
 	$c = 2000;
 	for($i=0;$i<$c; $i++){
-		$ch[$i] = Time::After($i*Time::Millisecond);
+		$ch[$i] = Time::After($i*Time::MILLISECOND);
 	}
 	
 	for($i=0;$i<$c; $i++){
@@ -90,7 +90,7 @@ go(function (){  //go 1
 				}
 			}
 			
-			Time::sleep(10 * Time::Millisecond); // = usleep(10*1000);
+			Time::sleep(10 * Time::MILLISECOND); // = usleep(10*1000);
 			
 			if( time()-$time0 > ($c+100) / 1000 ) {
 				echo "timer should expire at ". ($c/1000) .
@@ -108,7 +108,7 @@ Scheduler::join();
 subtc(5);
 go(function (){  //go 1
 
-	$ch = Time::tick(100*Time::Millisecond);
+	$ch = Time::tick(100*Time::MILLISECOND);
 	$done = new Chan(1);
 	
 	go( function() use($ch, $done){

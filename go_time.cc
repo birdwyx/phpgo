@@ -70,7 +70,7 @@ void GoTime::CreateGoRoutine( co_chan<TimerData*>* td_chan ){
 				ZVAL_STRING(z,str,1);
 				//ZVAL_LONG(z,1);
 				
-				if( !GoChan::TryPush(timer_chan, z TSRMLS_CC) ){
+				if( GoChan::RCode::success != GoChan::TryPush(timer_chan, z TSRMLS_CC) ){
 					zend_error(E_WARNING, "faile to activate timer %s on expiry: push to timer channel failed", td->chan_name);
 					continue;
 				}

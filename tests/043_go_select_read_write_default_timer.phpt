@@ -19,7 +19,7 @@ go(function() use($done){
 	$begin = time();
 	$dummy = 0;
 	$sel = select(
-		[ 'case', Time::after(1*Time::Second), "->", &$dummy, function($v) use($done, $begin){
+		[ 'case', Time::after(1*Time::SECOND), "->", &$dummy, function($v) use($done, $begin){
 			//assert( $v===1 );
 			//var_dump($v);
 			assert( time()-$begin == 1 );
@@ -47,7 +47,7 @@ go(function() use($done){
 	//echo $begin;
 	$dummy = 0;
 	$sel = select(
-		[ 'case', Time::tick(100*Time::Millisecond), /*"->", &$dummy, */ function($v) use($done, &$begin, &$i){
+		[ 'case', Time::tick(100*Time::MILLISECOND), /*"->", &$dummy, */ function($v) use($done, &$begin, &$i){
 			//assert( $v===1 );
 			assert( ($diff = abs( microtime(true)-$begin-0.1 )) < 0.05 );
 			//echo $diff . " ";

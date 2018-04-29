@@ -47,6 +47,7 @@ go(function() use($ch){
 		],
 		[
 			'default', function() use(&$df){
+				echo "go default\n";
 				$df = 1;
 			}
 		]

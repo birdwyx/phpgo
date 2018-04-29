@@ -55,15 +55,21 @@ struct ChannelData{
 class GoChan{
 	static std::map<std::string, ChannelInfo*> map_name_to_chinfo;
 	static std::atomic_flag chan_lock;
-
 public:
-	static void* Create(unsigned long capacity, char* name, size_t name_len, bool copy);
-	static void  Destroy(void* handle);
-	static void  Close(void* handle);
-	static void* Push(void* handle, zval* z TSRMLS_DC);
-	static zval* Pop(void* handle);
-	static bool  TryPush(void* handle, zval* z TSRMLS_DC);
-	static zval* TryPop(void* handle);
+	enum RCode{
+		success           = 0,
+		channel_closed    = 1,
+		channel_not_ready = 2
+	};
+	
+public:
+	static void*  Create(unsigned long capacity, char* name, size_t name_len, bool copy);
+	static void   Destroy(void* handle);
+	static bool   Close(void* handle);
+	static RCode  Push(void* handle, zval* z TSRMLS_DC);
+	static zval*  Pop(void* handle);
+	static RCode  TryPush(void* handle, zval* z TSRMLS_DC);
+	static zval*  TryPop(void* handle);
 	
 	/*convert chan zval to the channel ChannelInfo*/
 	static ChannelInfo* ZvalToChannelInfo(zval* z_chan TSRMLS_DC);

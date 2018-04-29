@@ -1,6 +1,11 @@
 --TEST--
 Go recursive function with 4096 nested levels (deemed to be FAIL)
 
+--SKIPIF--
+<?php
+echo "skip";
+?>
+
 --FILE--
 <?php
 use \Go\Scheduler;

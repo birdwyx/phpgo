@@ -1,6 +1,9 @@
 --TEST--
 Go closure with 256 args (deemed to be FAIL)
-
+--SKIPIF--
+<?php
+echo "skip";
+?>
 --FILE--
 <?php
 use \Go\Scheduler;

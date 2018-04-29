@@ -5,16 +5,31 @@ Go Mutex basic test
 <?php
 use \Go\Mutex;
 use \Go\Scheduler;
+use \Go\Time;
 
-function subtc($seq){
-    echo "SUB-TC: #$seq\n";
+$tcfailures = array();
+function my_assert($seq, $cond){
+	global $tcfailures;
+	if(!$cond){
+		echo "SUB-TC #$seq: assertion failed @ line " . (debug_backtrace()[0]['line']) .PHP_EOL;
+		$tcfailures[$seq] = true;
+	}
 }
 
-subtc(1);
+function subtc($seq, $title){
+    echo "SUB-TC #$seq: $title\n";
+}
 
-echo "create mutex, signaled\n";
+function passtc($seq, $cond){
+	global $tcfailures;
+	echo ( empty($tcfailures[$seq]) && $cond) ? 
+	     "SUB-TC #$seq: PASS\n" : 
+		 "SUB-TC #$seq: FAIL\n";
+}
+
+subtc(1, "Mutex created signaled, lock unlock test");
 $m = new Mutex();
-assert(!empty($m));
+my_assert(1, !empty($m));
 
 go(function() use($m){
 	echo "go 1 try to obtain lock\n";
@@ -37,11 +52,9 @@ go(function() use($m){
 
 Scheduler::join();
 
-subtc(2);
-
-echo "create mutex, not signaled\n";
+subtc(2, "Mutex created not signaled, lock unlock test" );
 $m1 = new Mutex(false);
-assert(!empty($m1));
+my_assert(2,!empty($m1));
 
 go(function() use($m1){
 	echo "go 3 try to obtain lock\n";
@@ -67,17 +80,43 @@ go(function() use($m1){
 
 Scheduler::join();
 
+
+subtc(3, "Mutex tryLock/isLock test");
+$m1 = new Mutex(false);
+my_assert(3,!empty($m1));
+my_assert(3, $m1->isLock());
+
+go(function() use($m1){
+	$i = 0;
+	while( !$m1->tryLock() ){
+		++$i;
+		my_assert(3, $m1->isLock());
+		Time::sleep(100*Time::MILLISECOND);
+	}
+	my_assert(3, $i == 10);
+	my_assert(3, $m1->isLock());
+	$m1->unlock();
+	my_assert(3, !$m1->isLock());
+});
+
+go(function() use($m1){
+	Time::sleep(1*Time::SECOND);
+	$m1->unlock();
+	my_assert(3, !$m1->isLock());
+});
+
+Scheduler::join();
+passtc(3,true);
+
 ?>
 --EXPECT--
-SUB-TC: #1
-create mutex, signaled
+SUB-TC #1: Mutex created signaled, lock unlock test
 go 1 try to obtain lock
 go 1 obtained lock
 go 2 try to obtain lock
 go 3 release lock
 go 2 obtained lock
-SUB-TC: #2
-create mutex, not signaled
+SUB-TC #2: Mutex created not signaled, lock unlock test
 go 3 try to obtain lock
 go 4 try to obtain lock
 go 5 release lock
@@ -85,5 +124,8 @@ go 3 obtained lock
 go 3 release lock
 go 4 obtained lock
 go 4 release lock
+SUB-TC #3: Mutex tryLock/isLock test
+SUB-TC #3: PASS
+
 
 

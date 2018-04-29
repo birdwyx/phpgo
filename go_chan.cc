@@ -111,27 +111,28 @@ void GoChan::Destroy(void* handle){
 	}
 }
 
-void GoChan::Close(void* handle){
-	
+bool GoChan::Close(void* handle){
 	//assert(handle);
 	
 	ChannelInfo* chinfo = (ChannelInfo*)handle;
+	if( chinfo->closed ) return false;
+	
 	chinfo->closed = true;
+	return true;
 }
 
-void* GoChan::Push(void* handle, zval* z TSRMLS_DC){
+GoChan::RCode GoChan::Push(void* handle, zval* z TSRMLS_DC){
 	
 	ChannelInfo* chinfo = (ChannelInfo*)handle;
 	
 	// cannot write to a closed channel
 	if(chinfo->closed)
-		return handle;
+		return GoChan::RCode::channel_closed;
 	
 	auto cd = new ChannelData(z, chinfo->copy TSRMLS_CC);
-	
 	*( (co_chan<ChannelData*>*)chinfo->chan ) << cd;
 	
-	return handle;
+	return GoChan::RCode::success;
 }
 
 zval* GoChan::Pop(void* handle){
@@ -144,6 +145,7 @@ zval* GoChan::Pop(void* handle){
 	};
 	
 	ChannelInfo* chinfo = (ChannelInfo*)handle;
+	co_chan<ChannelData*>* ch = (co_chan<ChannelData*>*)chinfo->chan;
 	
 	// to conform to the google go channel:
 	// if a chan is closed, return immediately
@@ -151,29 +153,34 @@ zval* GoChan::Pop(void* handle){
 	// slave routines, thus allow the master to broadcast a signal (typically treated 
 	// as close signal) to all slave routines
 	if(chinfo->closed){
-		MAKE_STD_ZVAL(z);
-		ZVAL_NULL(z);
-		return z;
-	}
-	
-	co_chan<ChannelData*>* ch = (co_chan<ChannelData*>*)chinfo->chan;
-	
-	// if it's not in any go routine,
-	// run the scheduler (so that the go routines will run and may
-	// push to the channel) until successfully read from the channel 
-	if (!co_sched.IsCoroutine()) {
-		while( !ch->TryPop(cd) ){
-			co_sched.Run();
+		if( !ch->TryPop(cd) || !cd ){
+			//channel closed, and no data available in channel
+			MAKE_STD_ZVAL(z);
+			ZVAL_NULL(z);
+			return z;
+		}else{
+			//data is available in this close channel,
+			//should return the data
+			//fall through...
 		}
 	}else{
-		// in a go routine, it's safe for a blocking read
-		*ch >> cd;
-	}
-	
-	if( !cd || !cd->z ){
-		MAKE_STD_ZVAL(z);
-		ZVAL_NULL(z);
-		return z;
+		// if it's not in any go routine,
+		// run the scheduler (so that the go routines will run and may
+		// push to the channel) until successfully read from the channel 
+		if (!co_sched.IsCoroutine()) {
+			while( !ch->TryPop(cd) ){
+				co_sched.Run();
+			}
+		}else{
+			// in a go routine, it's safe for a blocking read
+			*ch >> cd;
+		}
+		
+		if( !cd || !cd->z ){
+			MAKE_STD_ZVAL(z);
+			ZVAL_NULL(z);
+			return z;
+		}
 	}
 	
 	if(cd->copy){
@@ -198,23 +205,23 @@ zval* GoChan::Pop(void* handle){
 	return z;
 }
 
-bool GoChan::TryPush(void* handle, zval* z TSRMLS_DC){
+GoChan::RCode GoChan::TryPush(void* handle, zval* z TSRMLS_DC){
 	
 	ChannelInfo* chinfo = (ChannelInfo*)handle;
 	
 	// cannot write to a closed channel
 	if(chinfo->closed)
-		return false;
+		return GoChan::RCode::channel_closed;
 	
 	auto cd = new ChannelData(z, chinfo->copy TSRMLS_CC);
 	auto ch = (co_chan<ChannelData*>*)chinfo->chan;
 	
 	if( !ch->TryPush(cd) ){
 		delete cd;
-		return false;
+		return GoChan::RCode::channel_not_ready;
 	}
 
-	return true;
+	return GoChan::RCode::success;
 }
 
 zval* GoChan::TryPop(void* handle){
@@ -227,18 +234,24 @@ zval* GoChan::TryPop(void* handle){
 		if(cd) delete cd;
 	};
 	
-	if(chinfo->closed){
-		// return ZVAL_NULL means channel close
-		MAKE_STD_ZVAL(z);
-		ZVAL_NULL(z);
-		return z;
-	}
-	
 	auto ch = (co_chan<ChannelData*>*)chinfo->chan;
 	
-	// return nullptr means channel is not ready to read
-	if( !ch->TryPop(cd) || !cd )
-		return nullptr;
+	if(chinfo->closed){
+		if( !ch->TryPop(cd) || !cd ){
+			//channel closed, and no data available in channel
+			MAKE_STD_ZVAL(z);
+			ZVAL_NULL(z);
+			return z;
+		}else{
+			//data is available in this close channel,
+			//should return the data
+			//fall through...
+		}
+	}else{
+		// return nullptr means channel is not ready to read
+		if( !ch->TryPop(cd) || !cd )
+			return nullptr;
+	}
 	
 	if(cd->copy){
 		//this zval was copied from the sending thread's local storage 
