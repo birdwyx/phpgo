@@ -25,7 +25,7 @@ ChannelData::ChannelData(zval* zv, bool copy_flag TSRMLS_DC){
 		// php7: the zv pointed to zval in stack and cannot be used 
 	    // for sharing, make a new zval in heap
 		zval* new_z;
-		MAKE_STD_ZVAL(new_z);
+		ALLOC_INIT_ZVAL(new_z);
 		MAKE_COPY_ZVAL(&zv, new_z);
 		z = new_z;
 #endif
@@ -164,7 +164,7 @@ zval* GoChan::Pop(void* handle){
 	if(chinfo->closed){
 		if( !ch->TryPop(cd) || !cd ){
 			//channel closed, and no data available in channel
-			MAKE_STD_ZVAL(z);
+			ALLOC_INIT_ZVAL(z);
 			ZVAL_NULL(z);
 			return z;
 		}else{
@@ -186,7 +186,7 @@ zval* GoChan::Pop(void* handle){
 		}
 		
 		if( !cd || !cd->z ){
-			MAKE_STD_ZVAL(z);
+			ALLOC_INIT_ZVAL(z);
 			ZVAL_NULL(z);
 			return z;
 		}
@@ -247,7 +247,7 @@ zval* GoChan::TryPop(void* handle){
 	if(chinfo->closed){
 		if( !ch->TryPop(cd) || !cd ){
 			//channel closed, and no data available in channel
-			MAKE_STD_ZVAL(z);
+			ALLOC_INIT_ZVAL(z);
 			ZVAL_NULL(z);
 			return z;
 		}else{

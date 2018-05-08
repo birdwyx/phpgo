@@ -65,8 +65,7 @@ void GoTime::CreateGoRoutine( co_chan<TimerData*>* td_chan ){
 				gettimeofday(&tp, NULL);
 				double d = (double)tp.tv_sec + (double)tp.tv_usec/1000000.00;
 				
-				PHP5_AND_BELOW( PHPGO_ALLOC_INIT_ZVAL(z)  );
-				PHP7_AND_ABOVE( MAKE_STD_ZVAL_IN_STACK(z) );
+				PHPGO_MAKE_STD_ZVAL(z);
 				ZVAL_DOUBLE(z,d);
 				
 				TSRMLS_FETCH();

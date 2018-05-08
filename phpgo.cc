@@ -1110,12 +1110,10 @@ PHP_FUNCTION(select)
 	
 	//todo: php7: there may have mem leak here: 
 	//the make std zval allocated memory but not freed...
-    PHP5_AND_BELOW( PHPGO_MAKE_STD_ZVAL(z_selector) );
-	PHP7_AND_ABOVE( PHPGO_MAKE_STD_ZVAL_IN_STACK(z_selector) );
+    PHPGO_MAKE_STD_ZVAL(z_selector);
     object_init_ex(z_selector, ce_go_selector_ptr);
 	
-    PHP5_AND_BELOW( PHPGO_MAKE_STD_ZVAL(arg1) );
-	PHP7_AND_ABOVE( PHPGO_MAKE_STD_ZVAL_IN_STACK(arg1) );
+    PHPGO_MAKE_STD_ZVAL(arg1);
 	ZVAL_LONG(arg1, (long)selector);
 	
 	zend_call_method_with_1_params(
@@ -1482,12 +1480,10 @@ PHP_METHOD(Runtime, Goid)
 static THREAD_LOCAL uint32_t sid = 0; \
 zval *arg1 = nullptr; \
 do{\
-	PHP5_AND_BELOW( PHPGO_MAKE_STD_ZVAL(z_chan) ); \
-	PHP7_AND_ABOVE( PHPGO_MAKE_STD_ZVAL_IN_STACK(z_chan) ); \
+	PHPGO_MAKE_STD_ZVAL(z_chan); \
     object_init_ex(z_chan, ce_go_chan_ptr); \
 \
-	PHP5_AND_BELOW( PHPGO_MAKE_STD_ZVAL(arg1) ); \
-	PHP7_AND_ABOVE( PHPGO_MAKE_STD_ZVAL_IN_STACK(arg1) ); \
+	PHPGO_MAKE_STD_ZVAL(arg1); \
 	array_init(arg1); \
 \
 	sprintf(chan_name, "timer_%d_%d", clock(), sid++); \

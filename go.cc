@@ -370,7 +370,7 @@ void* phpgo_go(
 			}
 		}
 		
-		MAKE_STD_ZVAL(return_value);
+		PHPGO_MAKE_STD_ZVAL(return_value);
 		if( call_user_function_ex(
 			EG(function_table), 
 			NULL, 
