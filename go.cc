@@ -37,6 +37,8 @@ bool phpgo_initialize(){
 	return true;
 }
 
+#if PHP_MAJOR_VERSION < 7 
+
 void dump(void* buff, size_t n){
 	int i = 0 ; 
 	unsigned char* b = (unsigned char*)buff;
@@ -70,6 +72,93 @@ void dump_zval(zval* zv){
 	php_printf("<------\n");
 	//zv->refcount__gc = 3;
 }
+#else
+	void dump_zval(zval* zv){
+		const char* val_types[] = {
+			//0..10
+			"IS_UNDEF",
+			"IS_NULL",
+			"IS_FALSE",
+			"IS_TRUE",
+			"IS_LONG",
+			"IS_DOUBLE",
+			"IS_STRING",
+			"IS_ARRAY",
+			"IS_OBJECT",
+			"IS_RESOURCE",
+			"IS_REFERENCE",
+
+			"IS_CONSTANT",					//11
+			"IS_CONSTANT_AST",				//12
+			"_IS_BOOL",	                    //13
+			"IS_CALLABLE",					//14
+			"IS_INDIRECT",                  //15
+			"",
+			"IS_PTR",                       //17
+			"IS_VOID",						//18
+			"IS_ITERABLE",					//19
+			"_IS_ERROR"					    //20
+		};
+
+		php_printf("zval %p------>\n", zv);
+		php_printf("u1.v.type:                    %02x(%s)\n", zv->u1.v.type, val_types[zv->u1.v.type]);
+		php_printf("u1.v.type_flags:              %02x\n", zv->u1.v.type_flags);
+		php_printf("u1.v.const_flags:             %02x\n", zv->u1.v.const_flags);
+		php_printf("u1.v.reserved:                %02x\n", zv->u1.v.reserved);
+		php_printf("u1.v == u1.type_info ==:      %08x\n", zv->u1.type_info);
+		php_printf("u2:                           %08x\n", zv->u2.next);
+		php_printf("value:                        %016x\n", zv->value.lval);
+		
+		if( Z_REFCOUNTED_P(zv) ){
+			printf("value.counted->\n");
+			printf("    gc.refcount:              %08x\n", zv->value.counted->gc.refcount);
+			printf("    gc.u.v.type:              %02x\n", zv->value.counted->gc.u.v.type);
+			printf("    gc.u.v.flags:             %02x\n", zv->value.counted->gc.u.v.flags);
+			printf("    gc.u.v.gc_info:           %04x\n", zv->value.counted->gc.u.v.gc_info);
+			printf("    gc.u.type_info(==gc.u.v): %08x\n", zv->value.counted->gc.u.type_info);
+		}
+		
+		switch( Z_TYPE_P(zv) ){
+			case IS_STRING:
+				printf("    string(%d) = %s\n", zv->value.str->len, zv->value.str->val);
+				break;
+			case IS_REFERENCE:
+				printf("referece zval:\n");
+				dump_zval( &zv->value.ref->val);
+				break;
+		}
+	}
+#endif
+
+/*
+*/
+bool php_go_explode_array_arg(PHPGO_ARG_TYPE* args, size_t* exploded_size){
+	zval* arr    = PHPGO_ARG_TO_PZVAL( args[1] );
+	size_t index = 1;
+	
+	HashTable* ht        = Z_ARRVAL_P(arr); 
+	HashPosition pointer = PHPGO_INVALID_HASH_POSITION; //hash position is pointer prior to PHP7 and is a uint32_t after
+	auto n               = zend_hash_num_elements(ht);
+	if(!n) return false;
+	
+	zend_hash_internal_pointer_reset_ex(ht, &pointer); 
+	do{
+		void* data           = nullptr;
+		if( phpgo_zend_hash_get_current_data_ex(ht, (void**)&data, &pointer) != SUCCESS){
+			zend_error(E_ERROR, "phpgo: php_go_explode_array_arg(): error getting data of array index %d", index);
+			return false;
+		};
+		
+		//php5: data is a zval**; php7: data is a zval*
+		//php5: args is array of zval**; php7: args is array of zval ...uhhhh...f..k
+		args[index++] = PHP5_VS_7( (zval**)data, *(zval*)data );
+		
+		zend_hash_move_forward_ex(ht, &pointer);
+	} while( pointer != PHPGO_INVALID_HASH_POSITION );
+	
+	*exploded_size = n;
+	return true;
+}
 
 /*currently only single thread is working...
   to support multi-thread (i.e, to work with pthreads), at least the following will
@@ -80,27 +169,58 @@ void dump_zval(zval* zv){
       from thread local 
    3. ...
 */
-void* phpgo_go(uint64_t go_routine_options, uint32_t stack_size, zend_uint argc, zval ***args TSRMLS_DC){
-	
-	#define GR_VM_STACK_PAGE_SIZE (256)   // 256 zval* = 2048 byte
+
+void* phpgo_go(
+	uint64_t go_routine_options, 
+	uint32_t stack_size, 
+	zend_uint argc, 
+	PHPGO_ARG_TYPE* args
+	TSRMLS_DC
+){
+	#define GR_VM_STACK_PAGE_SIZE (256)           // 256 zval* = 2048 byte
+	#define GR_DEFAULT_STACK_SIZE (1024 * 1024)   // 1M
+	#define GR_MIN_STACK_SIZE     (32 * 1024)     // at least 32M  
+
+#if PHP_MAJOR_VERSION < 7
 	#define VM_STACK_PUSH(stack, v)  do { *((stack)->top++) = (void*)(v); } while(0)
-	#define VM_STACK_NUM_ARGS(stack) ( (unsigned long)(*(EG(argument_stack)->top - 1)) )
-	
+	#define VM_STACK_NUM_ARGS() ( (unsigned long)(*(EG_VM_STACK->top - 1)) )
+#else
+	#define VM_STACK_PUSH(stack, v)  do { ZVAL_COPY_VALUE((stack)->top++, (v)); } while(0)
+	#define VM_STACK_PUSH_LONG(stack, l) \
+		do{ \
+			zval tmp; \
+			ZVAL_LONG(&tmp, l); \
+			*((stack)->top++) = (tmp); \
+		} while(0)
+	#define VM_STACK_NUM_ARGS() ( Z_LVAL(*(EG_VM_STACK->top - 1)) )
+#endif	
 	//allocate a new stack for the go routine
 	zend_vm_stack go_routine_vm_stack = zend_vm_stack_new_page( argc > GR_VM_STACK_PAGE_SIZE ? argc : GR_VM_STACK_PAGE_SIZE );
 	if(!go_routine_vm_stack) return nullptr;
-	
+
+#if PHP_MAJOR_VERSION < 7
 	//set a stack start magic 0xdeaddeaddeaddead in stack bottom
 	VM_STACK_PUSH(go_routine_vm_stack, 0xdeaddeaddeaddead);
 	
 	//store the arguments and arg count into the go routine's own stack
 	//so that the go routine can then retrieve via zend_get_parameters_array_ex()
 	for(zend_uint i = 0; i < argc; i++ ){
-		zval_add_ref(args[i]);
+		phpgo_zval_add_ref(args[i]);
 		VM_STACK_PUSH(go_routine_vm_stack, *args[i]);
 	}
 	VM_STACK_PUSH(go_routine_vm_stack, (unsigned long)argc);
-	
+#else
+	VM_STACK_PUSH_LONG(go_routine_vm_stack, 0xdeaddeaddeaddead);
+	//printf("go: arg addr: \n");
+	for(zend_uint i = 0; i < argc; i++ ){
+		VM_STACK_PUSH(go_routine_vm_stack, &args[i]);
+		zval_add_ref(&args[i]);
+		//printf("%p,", &args[i]);
+	}
+	//printf("\n");
+	VM_STACK_PUSH_LONG(go_routine_vm_stack, (unsigned long)argc);
+#endif
+
 	/*Make a temporary context and save the current running environment into it
 	and then pass this context to the new creating go routine, so that the http
 	globals can be inherited */
@@ -113,22 +233,22 @@ void* phpgo_go(uint64_t go_routine_options, uint32_t stack_size, zend_uint argc,
 	parent_ctx->SwapOut(include_http_globals);
 	
 	if( !stack_size ) {
-		stack_size = 1024 * 1024;  /*default to 1M*/
-	}
-	else if( stack_size < 32*1024 ){
-		stack_size = 32*1024;      /*at least 32K stack, if size provided*/
+		stack_size = GR_DEFAULT_STACK_SIZE;  /*default to 1M*/
+	}else if( stack_size < GR_MIN_STACK_SIZE ){
+		stack_size = GR_MIN_STACK_SIZE;      /*at least 32K stack, if size provided*/
 	}
 		
 	auto tk = go_stack(stack_size) [go_routine_vm_stack, go_routine_options, parent_ctx TSRMLS_CC] ()mutable {
 		defer{
 			delete parent_ctx;
-			
-			if(!EG(argument_stack)){
-				//zend_vm_stack_destroy requires EG(argument_stack) be set
-				EG(argument_stack) = go_routine_vm_stack; 
+			if(!EG_VM_STACK){
+				//zend_vm_stack_destroy requires EG_VM_STACK be set
+				EG_VM_STACK = go_routine_vm_stack; 
 			}
 			zend_vm_stack_destroy(TSRMLS_C);
 		};
+		
+		//printf("1\n");
 
 		// set the tsrm_ls to my prarent, i.e., inherit all globals from my parent
 		PhpgoContext* ctx = new PhpgoContext(go_routine_options TSRMLS_CC); 
@@ -161,57 +281,92 @@ void* phpgo_go(uint64_t go_routine_options, uint32_t stack_size, zend_uint argc,
 		parent_ctx->SwapIn(include_http_globals);  
 		PHPGO_INITIALIZE_RUNNING_ENVIRONMENT();
 		
-		//set the argument stack to the dedicate stack
-		EG(argument_stack) = go_routine_vm_stack;
-		
-		char *func_name                  = NULL; 
+		//set the vm stack to the dedicate stack
+		EG_VM_STACK = go_routine_vm_stack;
+
+		FUNC_NAME_TYPE func_name         = NULL; 
 		char *error                      = NULL;
 		zend_fcall_info_cache *fci_cache = NULL;
 		zval* return_value               = NULL;
 		zend_uint argc                   = VM_STACK_NUM_ARGS();
-		zval*** args                     = NULL;
-		
+		PHPGO_ARG_TYPE* args             = NULL;
+
 		defer{
-			if(func_name) 	 efree(func_name);
+			if(func_name) 	 FREE_FUNC_NAME(func_name);
 			if(error)        efree(error);
 			if(fci_cache)    efree(fci_cache);
-			if(return_value) zval_ptr_dtor(&return_value);
+			if(return_value) phpgo_zval_ptr_dtor(&return_value);
 			
 			if(args){
+#if PHP_MAJOR_VERSION < 7
 				//we've add-ref'ed to the callback & parameters outside this go routine, so
 				//after complete using the callback, decrease the reference to them
 				for(zend_uint i = 0; i < argc; i++ ){
-					zval_ptr_dtor(args[i]);
+					phpgo_zval_ptr_dtor(args[i]);
 				}
+#endif
 				efree(args);
 			}
 		};
 
-		args = (zval ***)safe_emalloc(argc, sizeof(zval **), 0);
+		args = (PHPGO_ARG_TYPE*)safe_emalloc(PHPGO_MAX_GO_ARGS, sizeof(PHPGO_ARG_TYPE), 0);
 		if(!args) return;
 		
+		//printf("2: argc=%d, args=%p\n", argc, args);
+
+#if PHP_MAJOR_VERSION < 7
 		if (zend_get_parameters_array_ex(argc, args) == FAILURE) {
 			zend_error(E_ERROR, "phpgo: getting go routine parameters failed");
 			return;
 		}
+#else
+	    //vm stack = dead, arg1, arg2, ... argn, argc
+		zval* z_arg = EG_VM_STACK->top - argc -1;
+		for(auto i=0; i<argc; i++){
+			args[i] = *z_arg++;
+		}
+#endif
 		
-		/* go (callable $callback, callback_arg1, callback_arg2...), then
-		/* args[0] == $callback, args[1..n] = callback_arg1, ...callback_argn*/
-		
+		if(argc > 1){
+			// args is now [$callable, $parameter_arr]
+			// explode the $parameter_arr to $arg1,$arg2...$argn
+			// and then we will invoke the callable like this: $callable($arg1,$arg2...)
+			// args will look like [$callable, $arg1,$arg2,...,$argn] after this operation
+			size_t exploaded_size = 0;
+			if( !php_go_explode_array_arg(args, &exploaded_size) ) return;
+			argc += exploaded_size - 1; 
+		}
+
 		fci_cache = (zend_fcall_info_cache*)emalloc(sizeof(zend_fcall_info_cache));
 		if(!fci_cache) return;
 		
-		if(!zend_is_callable_ex(*args[0], NULL, IS_CALLABLE_CHECK_SILENT, &func_name, NULL, fci_cache, &error TSRMLS_CC)) {
+		zval* callback = PHPGO_ARG_TO_PZVAL(args[0]);
+		if(!zend_is_callable_ex(
+			callback, 
+			NULL, 
+			IS_CALLABLE_CHECK_SILENT, 
+			&func_name 
+			PHP5_AND_BELOW_ONLY_CC(NULL),
+			fci_cache, 
+			&error TSRMLS_CC)
+		){
 			if (error) {
 				zend_error(E_WARNING, "phpgo: invalid callback %s, %s", func_name, error);
 			}
 			return;
-		}
+        }
 		
 		// if any arg of the callback should be sent by ref, if yes, set the arg to pass-by-ref
 		for (auto i = 1; i < argc; i++) {
 			if (ARG_SHOULD_BE_SENT_BY_REF(fci_cache->function_handler, i)) {
+#if PHP_MAJOR_VERSION < 7
 				Z_SET_ISREF_PP(args[i]);
+#else
+				if (UNEXPECTED(!Z_ISREF_P(&args[i]))) {
+					ZVAL_NEW_REF(&args[i], &args[i]);
+					zend_error(E_WARNING, "phpgo: go: parameter %d to go routine expected to be a reference, value given", i);
+				}
+#endif
 			}
 		}
 		
@@ -219,10 +374,10 @@ void* phpgo_go(uint64_t go_routine_options, uint32_t stack_size, zend_uint argc,
 		if( call_user_function_ex(
 			EG(function_table), 
 			NULL, 
-			*args[0],                   // the callback callable
-			&return_value,              // zval** to receive return value
-			argc - 1,                   // the parameter number required by the callback
-			argc > 1 ? args + 1 : NULL, // the parameter list of the callback
+			callback,                                  // the callback callable
+			PHP5_VS_7(&return_value, return_value),    // return value: php5: zval**, php7: zval*
+			argc - 1,                                  // the parameter number required by the callback
+			argc > 1 ? args + 1 : NULL,                // the parameter list of the callback
 			1, 
 			NULL TSRMLS_CC
 		) != SUCCESS) {

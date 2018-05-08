@@ -19,14 +19,14 @@ go(function($ch){
 	$ch->push($v);
 	echo "pushed:";
 	var_dump($v);
-},$ch);
+},[$ch]);
 
 go(function($ch){
 	echo "pop\n";
 	$v = $ch->pop();
 	echo "popped:";
 	var_dump($v);
-},$ch);
+},[$ch]);
 
 Scheduler::join();
 

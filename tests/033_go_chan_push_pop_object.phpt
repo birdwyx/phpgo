@@ -31,7 +31,7 @@ go(function($ch){
 	$ch->push($v);
 	echo "pushed:";
 	var_dump($v);
-},$ch);
+},[$ch]);
 
 go(function($ch){
 	echo "pop\n";
@@ -39,7 +39,7 @@ go(function($ch){
 	echo "popped:";
 	var_dump($v);
 	$v->say();
-},$ch);
+},[$ch]);
 
 Scheduler::join();
 

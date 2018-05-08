@@ -45,7 +45,7 @@ void GoTime::CreateGoRoutine( co_chan<TimerData*>* td_chan ){
 				void* timer_chan = nullptr;
 				defer{
 					delete td; 
-					if(z) zval_ptr_dtor(&z); 
+					if(z) phpgo_zval_ptr_dtor(&z); 
 					if(timer_chan) {
 						// finish using the timer_chan, del-ref it
 						// the timer_chan was just add-ref'ed by GoChan::Create() below
@@ -61,17 +61,20 @@ void GoTime::CreateGoRoutine( co_chan<TimerData*>* td_chan ){
 				//GoChan::Close(timer_chan); // close chan to inform timer creator
 				
 				//return the current time,in the same format as microtime()
-				struct timeval tp = {0}; char str[36];
+				struct timeval tp = {0};
 				gettimeofday(&tp, NULL);
-				snprintf(str, 32, "%.8F %ld", tp.tv_usec / 1000000.00, tp.tv_sec);
+				double d = (double)tp.tv_sec + (double)tp.tv_usec/1000000.00;
+				
+				PHP5_AND_BELOW( PHPGO_ALLOC_INIT_ZVAL(z)  );
+				PHP7_AND_ABOVE( MAKE_STD_ZVAL_IN_STACK(z) );
+				ZVAL_DOUBLE(z,d);
 				
 				TSRMLS_FETCH();
-				MAKE_STD_ZVAL(z);
-				ZVAL_STRING(z,str,1);
-				//ZVAL_LONG(z,1);
-				
-				if( GoChan::RCode::success != GoChan::TryPush(timer_chan, z TSRMLS_CC) ){
-					zend_error(E_WARNING, "faile to activate timer %s on expiry: push to timer channel failed", td->chan_name);
+				GoChan::RCode rc = GoChan::TryPush(timer_chan, z TSRMLS_CC);
+				if( GoChan::RCode::success != rc ){
+					zend_error(E_WARNING, 
+					    "faile to activate timer %s on expiry: push to timer channel failed with error code %d", 
+						td->chan_name, rc);
 					continue;
 				}
 			}

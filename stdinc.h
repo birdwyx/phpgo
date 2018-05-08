@@ -10,5 +10,6 @@
 #include "ext/standard/info.h"
 
 #include "defer.h"
+#include "global_defs.h"
 
 #endif

@@ -18,6 +18,7 @@
 */
 
 /* $Id$ */
+#include "stdinc.h"
 #include <stdio.h>
 #include <set>
 #include "zend.h"
@@ -104,11 +105,24 @@ ZEND_API void _zval_persistent_copy_ctor_func(zval *zvalue ZEND_FILE_LINE_DC)
 		case IS_NULL:
 			break;
 		case IS_CONSTANT:
-		case IS_STRING:
 			CHECK_ZVAL_STRING_REL(zvalue);
+#if PHP_MAJOR_VERSION < 7
 			if (!IS_INTERNED(zvalue->value.str.val)) {
 				zvalue->value.str.val = (char *) pestrndup(zvalue->value.str.val, zvalue->value.str.len, 1);
 			}
+#else
+			Z_STR_P(zvalue) = zend_string_dup(Z_STR_P(zvalue), 1/*persistent*/);
+#endif
+			break;
+		case IS_STRING:
+			CHECK_ZVAL_STRING_REL(zvalue);
+#if PHP_MAJOR_VERSION < 7
+			if (!IS_INTERNED(zvalue->value.str.val)) {
+				zvalue->value.str.val = (char *) pestrndup(zvalue->value.str.val, zvalue->value.str.len, 1);
+			}
+#else
+			ZVAL_NEW_STR( zvalue, zend_string_dup(Z_STR_P(zvalue), 1/*persistent*/) );
+#endif
 			break;
 		case IS_ARRAY:
 #if ZEND_EXTENSION_API_NO <= PHP_5_5_API_NO
@@ -126,19 +140,18 @@ ZEND_API void _zval_persistent_copy_ctor_func(zval *zvalue ZEND_FILE_LINE_DC)
 				}
 	
 				zval *tmp;
-				HashTable *original_ht = zvalue->value.ht;
+				HashTable *original_ht = Z_ARRVAL_P(zvalue);
 				HashTable *tmp_ht = NULL;
 				TSRMLS_FETCH();
 
-				if (zvalue->value.ht == &EG(symbol_table)) {
+				if (original_ht == &EG(symbol_table)) {
 					return; /* do nothing */
 				}
 				
 				tmp_ht = (HashTable *) pemalloc_rel(sizeof(HashTable), 1);  //allocate persistently
-				
 				zend_hash_init(tmp_ht, zend_hash_num_elements(original_ht), NULL, ZVAL_PERSISTENT_PTR_DTOR, 1);  //1, init to persistent
-				zvalue->value.ht = tmp_ht;
-				
+				Z_ARRVAL_P(zvalue) = tmp_ht;
+
 				if( htset->find(original_ht) != htset->end() ){
 					zend_error(E_WARNING, "reference loop exists in array" );
 					return;
@@ -150,8 +163,11 @@ ZEND_API void _zval_persistent_copy_ctor_func(zval *zvalue ZEND_FILE_LINE_DC)
 					if( it!=htset->end() )
 						htset->erase(it);
 				};
-				
+#if PHP_MAJOR_VERSION < 7
 				zend_hash_copy(tmp_ht, original_ht, (copy_ctor_func_t)zval_persistent_ptr_ctor, (void *) &tmp, sizeof(zval *));
+#else
+				zend_hash_copy(tmp_ht, original_ht, (copy_ctor_func_t)zval_persistent_ptr_ctor);
+#endif
 				tmp_ht->nNextFreeElement = original_ht->nNextFreeElement;
 			}
 			break;
@@ -211,11 +227,24 @@ ZEND_API void _zval_persistent_to_local_copy_ctor_func(zval *zvalue ZEND_FILE_LI
 		case IS_NULL:
 			break;
 		case IS_CONSTANT:
-		case IS_STRING:
 			CHECK_ZVAL_STRING_REL(zvalue);
+#if PHP_MAJOR_VERSION < 7
 			if (!IS_INTERNED(zvalue->value.str.val)) {
 				zvalue->value.str.val = (char *) estrndup_rel(zvalue->value.str.val, zvalue->value.str.len);
 			}
+#else
+			Z_STR_P(zvalue) = zend_string_dup(Z_STR_P(zvalue), 0/*not persistent*/);
+#endif
+			break;
+		case IS_STRING:
+			CHECK_ZVAL_STRING_REL(zvalue);
+#if PHP_MAJOR_VERSION < 7
+			if (!IS_INTERNED(zvalue->value.str.val)) {
+				zvalue->value.str.val = (char *) estrndup_rel(zvalue->value.str.val, zvalue->value.str.len);
+			}
+#else
+			ZVAL_NEW_STR( zvalue, zend_string_dup(Z_STR_P(zvalue), 0/*not persistent*/) );
+#endif
 			break;
 		case IS_ARRAY:
 #if ZEND_EXTENSION_API_NO <= PHP_5_5_API_NO
@@ -223,17 +252,24 @@ ZEND_API void _zval_persistent_to_local_copy_ctor_func(zval *zvalue ZEND_FILE_LI
 #endif
 			{
 				zval *tmp;
-				HashTable *original_ht = zvalue->value.ht;
+
+				HashTable *original_ht = Z_ARRVAL_P(zvalue);
 				HashTable *tmp_ht = NULL;
 				TSRMLS_FETCH();
 
-				if (zvalue->value.ht == &EG(symbol_table)) {
+				if (original_ht == &EG(symbol_table)) {
 					return; /* do nothing */
 				}
+				
 				ALLOC_HASHTABLE_REL(tmp_ht);
 				zend_hash_init(tmp_ht, zend_hash_num_elements(original_ht), NULL, ZVAL_PTR_DTOR, 0);
-				zvalue->value.ht = tmp_ht;
-				zend_hash_copy(tmp_ht, original_ht, (copy_ctor_func_t)zval_persistent_to_local_ptr_ctor, (void *) &tmp, sizeof(zval *));
+				Z_ARRVAL_P(zvalue) = tmp_ht;
+				zend_hash_copy(
+					tmp_ht, original_ht, (copy_ctor_func_t)zval_persistent_to_local_ptr_ctor
+#if PHP_MAJOR_VERSION < 7
+					,(void *) &tmp, sizeof(zval *)
+#endif
+				);
 				tmp_ht->nNextFreeElement = original_ht->nNextFreeElement;
 			}
 			break;
@@ -263,7 +299,7 @@ ZEND_API void _zval_persistent_to_local_copy_ctor_func(zval *zvalue ZEND_FILE_LI
  (as apposed to the zvals allocated in thread local memory)
 */
 
-ZEND_API void zval_persistent_ptr_dtor_wrapper(zval **zval_ptr)
+ZEND_API void zval_persistent_pptr_dtor_wrapper(zval **zval_ptr)
 {	
 	if( zval_ptr && *zval_ptr ){
 		i_zval_persistent_ptr_dtor(*zval_ptr ZEND_FILE_LINE_CC);
@@ -273,16 +309,33 @@ ZEND_API void zval_persistent_ptr_dtor_wrapper(zval **zval_ptr)
 	*zval_ptr = nullptr;
 }
 
+ZEND_API void zval_persistent_ptr_dtor_wrapper(zval *zval_ptr)
+{	
+	if( zval_ptr && Z_TYPE_P(zval_ptr) != IS_NULL ){
+		i_zval_persistent_ptr_dtor(zval_ptr ZEND_FILE_LINE_CC);
+	}
+	
+	// set the zval pointer to null to avoid a second dtor call
+	ZVAL_NULL(zval_ptr);
+}
+
 ZEND_API void _zval_persistent_dtor_func(zval *zvalue ZEND_FILE_LINE_DC)
 {
-	#define STR_PERMENENT_FREE_REL(ptr)     if (ptr && !IS_INTERNED(ptr)) { pefree_rel(ptr,1); }
+#if PHP_MAJOR_VERSION < 7
+	#define __Z_STRING(zvalue) Z_STRVAL_P(zvalue)
+	#define STR_PERMENENT_FREE_REL(str)     if (ptr && !IS_INTERNED(str)) { pefree_rel(str,1); }
+#else
+	#define __Z_STRING(zvalue) Z_STR_P(zvalue)
+	#define STR_PERMENENT_FREE_REL(zs)      zend_string_release(zs)
+#endif
+
 	#define FREE_PERMENENT_HASHTABLE(ht)	pefree(ht, 1)
 	
 	switch (Z_TYPE_P(zvalue) & IS_CONSTANT_TYPE_MASK) {
 		case IS_STRING:
 		case IS_CONSTANT:
 			CHECK_ZVAL_STRING_REL(zvalue);
-			STR_PERMENENT_FREE_REL(zvalue->value.str.val);
+			STR_PERMENENT_FREE_REL( __Z_STRING(zvalue) );
 			break;
 		case IS_ARRAY:
 #if ZEND_EXTENSION_API_NO <= PHP_5_5_API_NO
@@ -291,12 +344,11 @@ ZEND_API void _zval_persistent_dtor_func(zval *zvalue ZEND_FILE_LINE_DC)
 			{
 				TSRMLS_FETCH();
 					
-				if (zvalue->value.ht && (zvalue->value.ht != &EG(symbol_table))) {
+				if ( Z_ARRVAL_P(zvalue) && ( Z_ARRVAL_P(zvalue) != &EG(symbol_table)) ){
 					/* break possible cycles */
-					Z_TYPE_P(zvalue) = IS_NULL;
-					zend_hash_destroy(zvalue->value.ht);
-
-					FREE_PERMENENT_HASHTABLE(zvalue->value.ht);
+					zend_hash_destroy( Z_ARRVAL_P(zvalue) );
+					FREE_PERMENENT_HASHTABLE( Z_ARRVAL_P(zvalue) );
+					ZVAL_NULL(zvalue);
 				}
 			}
 			break;

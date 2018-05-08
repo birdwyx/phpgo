@@ -35,7 +35,6 @@ typedef struct{
 struct ChannelData{
 #ifdef ZTS
 	THREAD_T from_thread_id;
-	void***  from_tsrm_ls;
 #endif
 	uint64_t from_task_id;
 	bool     copy;
@@ -46,8 +45,14 @@ struct ChannelData{
 		if(!z) return;
 		if(copy){
 			zval_persistent_ptr_dtor(&z);
+			//php7: the dtor won't free the z for us
+			//for a permenent z, we've finished using it: it had been copied to
+			//thread local heap in GoChan::Pop()/TryPop()
+			//free it here
+			//note: PHPGO_FREE_PERMENENT_PZVAL() has no effect in php5
+			PHPGO_FREE_PERMENENT_PZVAL(z);
 		}else{
-			zval_ptr_dtor(&z);
+			phpgo_zval_ptr_dtor(&z);
 		}
 	}
 };

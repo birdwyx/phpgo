@@ -21,4 +21,4 @@ typedef struct{
 } GO_SELECTOR;
 
 
-zval*  phpgo_select(GO_SELECT_CASE* case_array, long case_count TSRMLS_DC);
+bool phpgo_select(GO_SELECT_CASE* case_array, long case_count TSRMLS_DC);

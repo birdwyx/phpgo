@@ -34,7 +34,7 @@ go(function($ch){
 		//echo "push $i:\n";
 		$ch->push($i);
 	}
-},$ch);
+},[$ch]);
 
 
 go(function() use($ch){
@@ -66,7 +66,7 @@ go(function($ch){
 		//echo "push $i:\n";
 		$ch->push("$i");
 	}
-},$ch);
+},[$ch]);
 
 
 go(function() use($ch){
@@ -98,7 +98,7 @@ go(function($ch){
 		//echo "push $i:\n";
 		$ch->push( array("value"=>$i) );
 	}
-},$ch);
+},[$ch]);
 
 go(function() use($ch){
 	$v = -1; $u = $v;  $i=1; 

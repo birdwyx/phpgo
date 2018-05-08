@@ -25,20 +25,29 @@
 #define PHP_5_5_API_NO  220121212
 #define PHP_5_6_API_NO  220131226
 
-
-#define ALLOC_PERSISTENT_ZVAL(z)                        \
-	do {												\
-		(z) = (zval*)pemalloc(sizeof(zval_gc_info), 1);	\
-		GC_ZVAL_INIT(z);								\
-	} while (0)
+#if PHP_MAJOR_VERSION < 7
+	#define ALLOC_PERSISTENT_ZVAL(z)                        \
+		do {												\
+			(z) = (zval*)pemalloc(sizeof(zval_gc_info), 1);	\
+			GC_ZVAL_INIT(z);								\
+		} while (0)
+#else
+	#define ALLOC_PERSISTENT_ZVAL(z)                        \
+		do{                                                 \
+			(z) = (zval*)pemalloc(sizeof(zval), 1);         \
+			bzero(z, sizeof(zval));                         \
+		}while(0)
+#endif
 
 #define MAX_HASHTABLE_LAYERS  (16)
-	
-#define ZVAL_PERSISTENT_PTR_DTOR (void (*)(void *)) zval_persistent_ptr_dtor_wrapper
 
+#if PHP_MAJOR_VERSION < 7
+	#define ZVAL_PERSISTENT_PTR_DTOR (void (*)(void *)) zval_persistent_pptr_dtor_wrapper
+#else
+	#define ZVAL_PERSISTENT_PTR_DTOR (void (*)(zval *)) zval_persistent_ptr_dtor_wrapper
+#endif
 
-
-#define zval_persistent_ptr_dtor(pz) i_zval_persistent_ptr_dtor(*(pz) ZEND_FILE_LINE_CC)
+#define zval_persistent_ptr_dtor(ppz) i_zval_persistent_ptr_dtor(*(ppz) ZEND_FILE_LINE_CC)
 
 
 ZEND_API void  zval_persistent_copy_ctor(zval* zvalue);
@@ -48,11 +57,13 @@ ZEND_API void  zval_persistent_to_local_ptr_ctor(zval** zvalue);
 #define        zval_persistent_to_local_copy_ctor(z) _zval_persistent_to_local_copy_ctor_func(z ZEND_FILE_LINE_CC);
 ZEND_API void _zval_persistent_to_local_copy_ctor_func(zval *zvalue ZEND_FILE_LINE_DC);
 
-ZEND_API void  zval_persistent_ptr_dtor_wrapper(zval **zval_ptr);
+ZEND_API void  zval_persistent_pptr_dtor_wrapper(zval **zval_ptr);
+ZEND_API void  zval_persistent_ptr_dtor_wrapper(zval *zval_ptr);
 ZEND_API void _zval_persistent_dtor_func(zval *zvalue ZEND_FILE_LINE_DC);
 static zend_always_inline void _zval_persistent_dtor(zval *zvalue ZEND_FILE_LINE_DC);
 #define zval_persistent_dtor(z) _zval_persistent_dtor((z) ZEND_FILE_LINE_CC)
 
+#if PHP_MAJOR_VERSION < 7
 static zend_always_inline void i_zval_persistent_ptr_dtor(zval *zval_ptr ZEND_FILE_LINE_DC)
 {
 	if (!Z_DELREF_P(zval_ptr)) {
@@ -68,16 +79,30 @@ static zend_always_inline void i_zval_persistent_ptr_dtor(zval *zval_ptr ZEND_FI
 		//gc functionality on persistent memory
 		//GC_ZVAL_CHECK_POSSIBLE_ROOT(zval_ptr);
 	}
-
 }
 
 static zend_always_inline void _zval_persistent_dtor(zval *zvalue ZEND_FILE_LINE_DC)
 {
-	if (zvalue->type <= IS_BOOL) {
+	if (Z_TYPE_P(zvalue) <= IS_BOOL) {
 		return;
 	}
 	_zval_persistent_dtor_func(zvalue ZEND_FILE_LINE_RELAY_CC);
 }
+#else
+	
+static zend_always_inline void i_zval_persistent_ptr_dtor(zval *zval_ptr ZEND_FILE_LINE_DC)
+{
+	if (Z_REFCOUNTED_P(zval_ptr)) {
+		zend_refcounted *ref = Z_COUNTED_P(zval_ptr);
+		if (!--GC_REFCOUNT(ref)) {
+			_zval_persistent_dtor_func(zval_ptr ZEND_FILE_LINE_RELAY_CC);
+		} else {
+			//gc_check_possible_root(ref);
+		}
+	}
+}
+
+#endif
 
 #endif
 

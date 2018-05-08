@@ -24,7 +24,7 @@ go(function($ch){
 	echo "pushed true\n";
 	$ch->push(false);
 	echo "pushed false\n";
-},$ch);
+},[$ch]);
 
 go(function($ch){
 	echo "pop\n";
@@ -40,7 +40,7 @@ go(function($ch){
 	$v = $ch->pop();
 	echo "popped:";
 	var_dump($v);
-},$ch);
+},[$ch]);
 
 Scheduler::join();
 

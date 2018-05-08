@@ -39,7 +39,7 @@ for($i=0; $i<64*1024;$i++){
 		*/
 		//echo "$i\n";
 		usleep(1);
-	}, $i);
+	}, [$i]);
 }
 
 Scheduler::join();

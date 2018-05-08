@@ -43,7 +43,7 @@ function f($level){
 	f($level+1);
 }
 
-go('f', 0);
+go('f', [0]);
 
 Scheduler::join();
 

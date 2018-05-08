@@ -340,29 +340,32 @@ PHP_MINFO_FUNCTION(phpgo)
 	if( z1 ){
 	    if( Z_TYPE_P(z1) == IS_LONG ){
 			capacity = Z_LVAL_P(z1);
-		}else if( Z_TYPE_P(z1) == IS_ARRAY && z1->value.ht){
-			zval** ppz = NULL;
-			if( zend_hash_find(HASH_OF(z1), "name", sizeof("name"), (void**)&ppz) == SUCCESS ){
-				if(Z_TYPE_P(*ppz) != IS_STRING){
+		}else if( Z_TYPE_P(z1) == IS_ARRAY /*&& z1->value.ht  not necessary,remove for php7*/){
+			
+			void** data = NULL;
+			#define zvalp_data PHP5_VS_7( *(zval**)data, (zval*)data )
+			
+			if( phpgo_zend_hash_find(HASH_OF(z1), "name", sizeof("name"), (void**)&data) == SUCCESS ){
+				if(Z_TYPE_P( zvalp_data ) != IS_STRING){
 					zend_error(E_ERROR, "phpgo: Chan( $options ): option \"name\" must be string");
 					RETURN_NULL();
 				}
-				name     = Z_STRVAL_P(*ppz);
-				name_len = Z_STRLEN_P(*ppz);
+				name     = Z_STRVAL_P( zvalp_data );
+				name_len = Z_STRLEN_P( zvalp_data );
 			}
-			if( zend_hash_find(HASH_OF(z1), "capacity", sizeof("capacity"), (void**)&ppz) == SUCCESS ){
-				if(Z_TYPE_P(*ppz) != IS_LONG){
+			if( phpgo_zend_hash_find(HASH_OF(z1), "capacity", sizeof("capacity"), (void**)&data) == SUCCESS ){
+				if(Z_TYPE_P( zvalp_data ) != IS_LONG){
 					zend_error(E_ERROR, "phpgo: Chan( $options ): option \"capacity\" must be long");
 					RETURN_NULL();
 				}
-				capacity     = Z_LVAL_P(*ppz);
+				capacity     = Z_LVAL_P( zvalp_data );
 			}
-			if( zend_hash_find(HASH_OF(z1), "copy", sizeof("copy"), (void**)&ppz) == SUCCESS ){
-				if(Z_TYPE_P(*ppz) != IS_BOOL){
+			if( phpgo_zend_hash_find(HASH_OF(z1), "copy", sizeof("copy"), (void**)&data) == SUCCESS ){
+				if( !PHPGO_ZVAL_IS_BOOL( zvalp_data ) ){
 					zend_error(E_ERROR, "phpgo: Chan( $options ): option \"copy\" must be bool");
 					RETURN_NULL();
 				}
-				copy     = Z_BVAL_P(*ppz);
+				copy     = Z_BVAL_P( zvalp_data );
 			}
 		}else{
 			zend_error(E_ERROR, "phpgo: Chan( long $capacity| array $options ): parameter 1 must be long or array");
@@ -381,7 +384,7 @@ PHP_MINFO_FUNCTION(phpgo)
 	void* chan = GoChan::Create(capacity, name, name_len, copy);
 	
 	return_value = getThis();
-	zend_update_property_long  (ce_go_chan_ptr, return_value, "handle", sizeof("handle")-1,   (long)chan    TSRMLS_CC);
+	zend_update_property_long  (ce_go_chan_ptr, return_value, "handle",   sizeof("handle")-1,   (long)chan    TSRMLS_CC);
 	zend_update_property_string(ce_go_chan_ptr, return_value, "name",     sizeof("name")-1,     name?name:""  TSRMLS_CC);
 	zend_update_property_long  (ce_go_chan_ptr, return_value, "capacity", sizeof("capacity")-1, capacity      TSRMLS_CC);
 	zend_update_property_bool  (ce_go_chan_ptr, return_value, "copy",     sizeof("copy")-1,     copy          TSRMLS_CC);
@@ -404,7 +407,7 @@ PHP_MINFO_FUNCTION(phpgo)
     }
 	
 	auto self = getThis();
-	chan = zend_read_property(ce_go_chan_ptr, self, "handle", sizeof("handle")-1, true TSRMLS_CC);
+	chan = phpgo_zend_read_property(ce_go_chan_ptr, self, "handle", sizeof("handle")-1, true TSRMLS_CC);
 
 	if(!chan)
 		RETURN_FALSE;
@@ -437,7 +440,7 @@ PHP_MINFO_FUNCTION(phpgo)
     }
 	
 	auto self = getThis();
-	chan = zend_read_property(ce_go_chan_ptr, self, "handle", sizeof("handle")-1, true TSRMLS_CC);
+	chan = phpgo_zend_read_property(ce_go_chan_ptr, self, "handle", sizeof("handle")-1, true TSRMLS_CC);
 
 	if(!chan)
 		RETURN_FALSE;
@@ -466,7 +469,7 @@ PHP_MINFO_FUNCTION(phpgo)
 	//printf("Chan::Pop\n");
 	
 	zval* self = getThis();
-	zval* chan = zend_read_property(ce_go_chan_ptr, self, "handle", sizeof("handle")-1, true TSRMLS_CC);
+	zval* chan = phpgo_zend_read_property(ce_go_chan_ptr, self, "handle", sizeof("handle")-1, true TSRMLS_CC);
 
 	if(!chan)
 		RETURN_FALSE;
@@ -477,7 +480,14 @@ PHP_MINFO_FUNCTION(phpgo)
 	//Pop return false on error
 	if(!z)
 		RETURN_FALSE;
-	
+
+	// php7: this z was emalloc'ed in ChannelData::ChannelData() 
+	// or inside the GoChan::Pop()
+	// we'll need to efree it by ourselves since the zval dtor's
+	// won't do this for us in php7
+	// note: the PHPGO_FREE_PZVAL has no effect in php5
+	defer{ PHPGO_FREE_PZVAL(z); };
+
 	//return the zval, or NULL if channel closed and no data ready to read
 	RETURN_ZVAL(z, 1, 1);
  }
@@ -496,7 +506,7 @@ PHP_MINFO_FUNCTION(phpgo)
 	//printf("Chan::TryPop\n");
 	
 	zval* self = getThis();
-	zval* chan = zend_read_property(ce_go_chan_ptr, self, "handle", sizeof("handle")-1, true TSRMLS_CC);
+	zval* chan = phpgo_zend_read_property(ce_go_chan_ptr, self, "handle", sizeof("handle")-1, true TSRMLS_CC);
 
 	if(!chan)
 		RETURN_FALSE;
@@ -512,6 +522,13 @@ PHP_MINFO_FUNCTION(phpgo)
 	// return false if channel not ready
 	if(!z)
 		RETURN_FALSE;
+
+	// php7: this z was emalloc'ed in ChannelData::ChannelData() 
+	// or inside the GoChan::TryPop()
+	// we'll need to efree it by ourselves since the zval dtor's
+	// won't do this for us in php7
+	// note: the PHPGO_FREE_PZVAL has no effect in php5
+	defer{ PHPGO_FREE_PZVAL(z); };
 	
 	// return the zval, or NULL if channel closed and no data ready to read
 	RETURN_ZVAL(z, 1, 1);
@@ -527,7 +544,7 @@ PHP_MINFO_FUNCTION(phpgo)
 	//printf("Chan::Close\n");
 	
 	zval* self = getThis();
-	zval* chan = zend_read_property(ce_go_chan_ptr, self, "handle", sizeof("handle")-1, true TSRMLS_CC);
+	zval* chan = phpgo_zend_read_property(ce_go_chan_ptr, self, "handle", sizeof("handle")-1, true TSRMLS_CC);
 
 	if(!chan)
 		RETURN_FALSE;
@@ -551,7 +568,7 @@ PHP_MINFO_FUNCTION(phpgo)
 	//printf("Chan::__destruct\n");
 	
 	zval* self = getThis();
-	zval* chan = zend_read_property(ce_go_chan_ptr, self, "handle", sizeof("handle")-1, true TSRMLS_CC);
+	zval* chan = phpgo_zend_read_property(ce_go_chan_ptr, self, "handle", sizeof("handle")-1, true TSRMLS_CC);
 	
 	if(!chan)
 		RETURN_FALSE;
@@ -587,7 +604,7 @@ PHP_MINFO_FUNCTION(phpgo)
   */
  PHP_METHOD(Selector, Select){
 	zval* self = getThis();
-	zval* z_selector = zend_read_property(ce_go_selector_ptr, self, "handle", sizeof("handle")-1, true TSRMLS_CC);
+	zval* z_selector = phpgo_zend_read_property(ce_go_selector_ptr, self, "handle", sizeof("handle")-1, true TSRMLS_CC);
 	
 	if(!z_selector || Z_TYPE_P(z_selector) == IS_NULL){
 		zend_error(E_ERROR, "phpgo: Selector::select(): error reading object handle");
@@ -618,7 +635,7 @@ PHP_MINFO_FUNCTION(phpgo)
 		RETURN_FALSE;
     }
 	
-	zval* chan = zend_read_property(ce_go_chan_ptr, z_chan, "handle", sizeof("handle")-1, true TSRMLS_CC);
+	zval* chan = phpgo_zend_read_property(ce_go_chan_ptr, z_chan, "handle", sizeof("handle")-1, true TSRMLS_CC);
 
 	if(!chan || Z_TYPE_P(chan) == IS_NULL ){
 		zend_error(E_ERROR, "phpgo: Selector::loop(): null channel handle");
@@ -629,7 +646,7 @@ PHP_MINFO_FUNCTION(phpgo)
 	
 	//--
 	zval* self = getThis();
-	zval* z_selector = zend_read_property(ce_go_selector_ptr, self, "handle", sizeof("handle")-1, true TSRMLS_CC);
+	zval* z_selector = phpgo_zend_read_property(ce_go_selector_ptr, self, "handle", sizeof("handle")-1, true TSRMLS_CC);
 	
 	if(!z_selector || Z_TYPE_P(z_selector) == IS_NULL){
 		zend_error(E_ERROR, "phpgo: Selector::loop(): error reading object handle");
@@ -652,7 +669,7 @@ PHP_MINFO_FUNCTION(phpgo)
 		phpgo_select(selector->case_array, selector->case_count TSRMLS_CC);
 	}
 	
-	zval_add_ref(&z);
+	phpgo_zval_add_ref(&z);
 	RETURN_ZVAL(z, 1, 1);
  }
  /* }}} */
@@ -663,7 +680,7 @@ PHP_MINFO_FUNCTION(phpgo)
  PHP_METHOD(Selector,__destruct){
 	
 	zval* self = getThis();
-	zval* selector = zend_read_property(ce_go_selector_ptr, self, "handle", sizeof("handle")-1, true TSRMLS_CC);
+	zval* selector = phpgo_zend_read_property(ce_go_selector_ptr, self, "handle", sizeof("handle")-1, true TSRMLS_CC);
 	
 	if(!selector)
 		RETURN_FALSE;
@@ -679,17 +696,20 @@ PHP_MINFO_FUNCTION(phpgo)
 		for(auto i = 0; i < case_count; i++){
 			if( case_array[i].chan /*&& 
 			    Z_TYPE_P(case_array[i].chan) != IS_NULL*/ ) {
-				zval_ptr_dtor(&case_array[i].chan);
+				phpgo_zval_ptr_dtor(&case_array[i].chan);
+				PHPGO_FREE_PZVAL(case_array[i].chan);
 			}
 			
 			if( case_array[i].value /*&& 
 			    Z_TYPE_P(case_array[i].value) != IS_NULL*/ ) {
-				zval_ptr_dtor(&case_array[i].value);
+				phpgo_zval_ptr_dtor(&case_array[i].value);
+				PHPGO_FREE_PZVAL(case_array[i].value);
 			}
 
 			if( case_array[i].callback /*&& 
 			    Z_TYPE_P(case_array[i].callback) != IS_NULL*/) {
-				zval_ptr_dtor(&case_array[i].callback);
+				phpgo_zval_ptr_dtor(&case_array[i].callback);
+				PHPGO_FREE_PZVAL(case_array[i].callback);
 			}
 		}
 		
@@ -712,25 +732,32 @@ PHP_FUNCTION(go)
 		zend_error(E_ERROR, "phpgo: go(): callable missing in parameter list");
         RETURN_FALSE;
 	}
-	
-    zval ***args = NULL;
+
+    PHPGO_ARG_TYPE* args = NULL;
+	args = (PHPGO_ARG_TYPE*)safe_emalloc(argc, sizeof(PHPGO_ARG_TYPE), 0);
 	defer{
 		if(args) efree(args);
 	};
-	args = (zval ***)safe_emalloc(argc, sizeof(zval **), 0);
-    if ( zend_get_parameters_array_ex(argc, args) == FAILURE) {
+	
+    if( zend_get_parameters_array_ex(argc, args) == FAILURE ){
 		zend_error(E_ERROR, "phpgo: go(): error getting parameters");
         RETURN_FALSE;
     }
 
-    char *func_name = NULL;
+	FUNC_NAME_TYPE func_name = NULL;
 	defer{
-		if(func_name) efree(func_name);
+		if(func_name) FREE_FUNC_NAME(func_name);
 	};
-    if (!zend_is_callable(*args[0], 0, &func_name TSRMLS_CC)){
-        php_error_docref(NULL TSRMLS_CC,E_ERROR, "phpgo: go(): function '%s' is not callable", func_name);
+	
+    if(!zend_is_callable( PHPGO_ARG_TO_PZVAL(args[0]), 0, &func_name TSRMLS_CC)){
+        zend_error(E_ERROR, "phpgo: go(): function '%s' is not callable", func_name);
         RETURN_FALSE;
     }
+
+	if( argc > 1 && Z_TYPE_P( PHPGO_ARG_TO_PZVAL(args[1]) ) != IS_ARRAY ){
+		zend_error(E_ERROR, "phpgo: go(): parameter 2 expected to be an array");
+        RETURN_FALSE;
+	}
 	
 	void* co = phpgo_go( GoRoutineOptions::gro_default, 0/*stack_size*/, argc, args TSRMLS_CC);
 	
@@ -771,43 +798,48 @@ PHP_FUNCTION(goo)
         RETURN_FALSE;
 	}
 	
-    zval ***args = NULL;
+    PHPGO_ARG_TYPE* args = NULL;
+	args = (PHPGO_ARG_TYPE*)safe_emalloc(argc, sizeof(PHPGO_ARG_TYPE), 0);
 	defer{
 		if(args) efree(args);
 	};
-    args = (zval ***)safe_emalloc(argc, sizeof(zval **), 0);
+    
     if ( zend_get_parameters_array_ex(argc, args) == FAILURE) {
 		zend_error(E_ERROR, "phpgo: goo(): error getting parameters");
         RETURN_FALSE;
     }
-	
-	zval* arr_optoins = *args[0];
+
+	zval* arr_optoins = PHP5_VS_7(*args[0], &args[0]);
 	if( Z_TYPE_P(arr_optoins) != IS_ARRAY ){
 		zend_error(E_ERROR, "phpgo: goo(): options must be array");
         RETURN_FALSE;
 	}
 	
-	zval** ppz = NULL;
-	if( zend_hash_find(HASH_OF(arr_optoins), "stack_size", sizeof("stack_size"), (void**)&ppz) == SUCCESS ){
-		zval var = **ppz;
+	void* data = NULL;
+	#define zval_data PHP5_VS_7( **(zval**)data, *(zval*)data )
+	if( phpgo_zend_hash_find(HASH_OF(arr_optoins), "stack_size", sizeof("stack_size"), (void**)&data) == SUCCESS ){
+		zval var = zval_data;
 		zval_copy_ctor(&var);
 		convert_to_long(&var);
 		stack_size = Z_LVAL(var);
 	}
 	
-	if( zend_hash_find(HASH_OF(arr_optoins), "isolate_http_globals", sizeof("isolate_http_globals"), (void**)&ppz) == SUCCESS ){
-		zval var = **ppz;
+	if( phpgo_zend_hash_find(HASH_OF(arr_optoins), "isolate_http_globals", sizeof("isolate_http_globals"), (void**)&data) == SUCCESS ){
+		zval var = zval_data;
 		zval_copy_ctor(&var);
 		convert_to_boolean(&var);
 		isolate_http_globals = Z_BVAL(var);
 	}
 
-    char *func_name = NULL;
+    FUNC_NAME_TYPE func_name = NULL;
 	defer{
-		if(func_name) efree(func_name);
+		if(func_name) FREE_FUNC_NAME(func_name);
 	};
-    if (!zend_is_callable(*args[1], 0, &func_name TSRMLS_CC)){
-        php_error_docref(NULL TSRMLS_CC,E_ERROR, "phpgo: go(): function '%s' is not callable", func_name);
+	
+	zval* callable = PHP5_VS_7(*args[1], &args[1]);
+	if (!zend_is_callable(callable, 0, &func_name TSRMLS_CC))
+    {
+        zend_error(E_ERROR, "phpgo: go(): function '%s' is not callable", func_name);
         RETURN_FALSE;
     }
 
@@ -837,16 +869,18 @@ PHP_FUNCTION( go_debug )
  */
 PHP_FUNCTION(select)
 {
+	#define zvalp_data PHP5_VS_7( *(zval**)data, (zval*)data )
+	
 	#define GO_SELECT_FREE_RESOURCE() \
 	do { \
 		if(args) efree(args); \
 		if(case_array) efree(case_array); \
-		if(func_name) efree(func_name); \
+		if(func_name) FREE_FUNC_NAME(func_name); \
 	}while(0)
 		
 	#define ENSURE_SUFFICIENT_PARAMETERS() \
 	do{ \
-		if(!pointer){ \
+		if( pointer==PHPGO_INVALID_HASH_POSITION ){ \
 			zend_error(E_ERROR, "phpgo: select(): case %d: insufficient parameter count", i+1); \
 			goto error_return; \
 		} \
@@ -856,10 +890,11 @@ PHP_FUNCTION(select)
 	//default behaviour is to read the value into a temporary zval
 	#define GO_TO_EXTRACT_CALLABLE_IF_EARLY_CALLABLE() \
 	do{ \
-		char* func_name = NULL; defer{ if(func_name) efree(func_name); }; \
-		if( zend_is_callable(*data, 0, &func_name TSRMLS_CC) ){ \
+		FUNC_NAME_TYPE func_name = NULL; \
+		defer{ if(func_name) FREE_FUNC_NAME(func_name); }; \
+		if( zend_is_callable(zvalp_data, 0, &func_name TSRMLS_CC) ){ \
 			op = GO_CASE_OP_READ; \
-			ALLOC_INIT_ZVAL(value); \
+			PHPGO_ALLOC_INIT_ZVAL(value); \
 			goto extract_callable; \
 		} \
 	}while(0)
@@ -870,8 +905,7 @@ PHP_FUNCTION(select)
 	bool exec                  = true;
 	zval* z_selector           = NULL;
 	zval* arg1                 = NULL;
-	char* func_name            = NULL;
-			
+	FUNC_NAME_TYPE func_name   = NULL;
 	int argc                   = ZEND_NUM_ARGS(); 
 	int case_count             = argc;
 	
@@ -880,16 +914,19 @@ PHP_FUNCTION(select)
         RETURN_FALSE;
 	}
 	
-    zval ***args = (zval ***)safe_emalloc(argc, sizeof(zval **), 0);
-    if ( zend_get_parameters_array_ex(argc, args) == FAILURE) {
+    PHPGO_ARG_TYPE *args = NULL;
+	args = (PHPGO_ARG_TYPE*)safe_emalloc(argc, sizeof(PHPGO_ARG_TYPE), 0);
+
+    if ( zend_get_parameters_array_ex(argc, args) == FAILURE ){
 		zend_error(E_ERROR, "phpgo: select(): error getting parameters");
         goto error_return;
     }
-	
+
+	#define ARGN PHP5_VS_7(*args[argc-1], &args[argc-1])
 	/*the last argument == false, return the case array rather than execute the select*/
-	type =  Z_TYPE_P( *args[argc-1] );
+	type =  Z_TYPE_P( ARGN );
 	if( type == IS_BOOL ){
-		exec = Z_BVAL_P(*args[argc-1]);
+		exec = Z_BVAL_P( ARGN );
 		--case_count;
 	}
 	
@@ -901,9 +938,9 @@ PHP_FUNCTION(select)
 	case_array = (GO_SELECT_CASE*)safe_emalloc(case_count, sizeof(GO_SELECT_CASE), 0);
 	
 	for(int i = 0; i < case_count; i++){
-		zval**       data;
+		void*        data = nullptr;
 		HashTable*   ht;
-		HashPosition pointer = NULL;
+		HashPosition pointer = 0; //hash position is pointer prior to PHP7 and is a uint32_t after
 		zval*        chan = NULL;
 		long         op = 0, case_type = 0; 
 		zval*        callback = NULL; 
@@ -913,32 +950,33 @@ PHP_FUNCTION(select)
 		char*        op_str = NULL;
 		
 		defer{
-			if(chan)     zval_ptr_dtor(&chan);
-			if(value)    zval_ptr_dtor(&value);
-			if(callback) zval_ptr_dtor(&callback);
+			if(chan)     phpgo_zval_ptr_dtor(&chan);
+			if(value)    phpgo_zval_ptr_dtor(&value);
+			if(callback) phpgo_zval_ptr_dtor(&callback);
 		};
-		
-		if( Z_TYPE_P(*args[i]) != IS_ARRAY ){
+
+		zval* z = PHP5_VS_7(*args[i], &args[i]);
+		if( Z_TYPE_P(z) != IS_ARRAY ){
 			zend_error(E_ERROR, "parameter %d to select() expected to be an array", i+1);
 			goto error_return;
 		}
 			
-		ht = Z_ARRVAL_P(*args[i]);
+		ht = Z_ARRVAL_P(z);
 		zend_hash_internal_pointer_reset_ex(ht, &pointer); 
 		ENSURE_SUFFICIENT_PARAMETERS();
 		
 		// #1 'case' / 'default'
-		if( zend_hash_get_current_data_ex(ht, (void**) &data, &pointer) != SUCCESS){
+		if( phpgo_zend_hash_get_current_data_ex(ht, (void**) &data, &pointer) != SUCCESS){
 			zend_error(E_ERROR, "phpgo: select(): error getting data of parameter %d", i+1);
 			goto error_return;
 		};
 		
-		if( Z_TYPE_P(*data) != IS_STRING ){
+		if( Z_TYPE_P( zvalp_data ) != IS_STRING ){
 			zend_error(E_ERROR, "phpgo: select(): case %d: invalid case type, expect 'case' or 'default'", i+1);
 			goto error_return;
 		}
 
-		auto case_type_str = Z_STRVAL_P(*data); 
+		auto case_type_str = Z_STRVAL_P( zvalp_data ); 
 		if( !strcasecmp( case_type_str, "case" ) ){
 			case_type = GO_CASE_TYPE_CASE;
 		}else if ( !strcasecmp( case_type_str, "default" ) ){
@@ -953,39 +991,39 @@ PHP_FUNCTION(select)
 
 		if( case_type == GO_CASE_TYPE_DEFAULT ){
 			op = 0;
-			ALLOC_INIT_ZVAL(chan);
-			ALLOC_INIT_ZVAL(value);
+			PHPGO_ALLOC_INIT_ZVAL(chan);
+			PHPGO_ALLOC_INIT_ZVAL(value);
 			goto extract_callable;
 		}
 		
 		//#2 chan
-		if( zend_hash_get_current_data_ex(ht, (void**) &data, &pointer) != SUCCESS){
+		if( phpgo_zend_hash_get_current_data_ex(ht, (void**) &data, &pointer) != SUCCESS){
 			zend_error(E_ERROR, "phpgo: select(): error getting parameter %d data", i+1);
 			goto error_return;
 		};
-		if( Z_TYPE_P(*data) != IS_OBJECT ){
+		if( Z_TYPE_P( zvalp_data ) != IS_OBJECT ){
 			zend_error(E_ERROR, "phpgo: select(): case %d: invalid parameter type, object of go\\Chan expected", i+1);
 			goto error_return;
 		}
-		ch = *data;
-		ALLOC_INIT_ZVAL(chan);
-		MAKE_COPY_ZVAL(&ch,chan);
+		ch = zvalp_data;
+		PHPGO_ALLOC_INIT_ZVAL(chan);
+		PHPGO_MAKE_COPY_ZVAL(&ch,chan);
 
 		zend_hash_move_forward_ex(ht, &pointer);
 		ENSURE_SUFFICIENT_PARAMETERS();
 		
 		// #3 op: "->" "<-"
-		if( zend_hash_get_current_data_ex(ht, (void**) &data, &pointer) != SUCCESS){
+		if( phpgo_zend_hash_get_current_data_ex(ht, (void**) &data, &pointer) != SUCCESS){
 			zend_error(E_ERROR, "phpgo: select(): error getting parameter %d data", i+1);
 			goto error_return;
 		};
 		
-		if( Z_TYPE_P(*data) != IS_STRING ){
+		if( Z_TYPE_P( zvalp_data ) != IS_STRING ){
 			GO_TO_EXTRACT_CALLABLE_IF_EARLY_CALLABLE();
 			zend_error(E_ERROR, "phpgo: select(): case %d: invalid operation type, expect '<-' or '->'", i+1);
 			goto error_return;
 		}
-		op_str = Z_STRVAL_P(*data); 
+		op_str = Z_STRVAL_P( zvalp_data ); 
 		if( !strcmp(op_str, "->") ){
 			op = GO_CASE_OP_READ;
 		}else if( !strcmp(op_str, "<-") ){
@@ -999,12 +1037,12 @@ PHP_FUNCTION(select)
 		ENSURE_SUFFICIENT_PARAMETERS();
 		
 		//#4 value
-		if( zend_hash_get_current_data_ex(ht, (void**) &data, &pointer) != SUCCESS){
+		if( phpgo_zend_hash_get_current_data_ex(ht, (void**) &data, &pointer) != SUCCESS){
 			zend_error(E_ERROR, "phpgo: select(): error getting parameter %d data", i+1);
 			goto error_return;
 		};
 		
-		v = *data; 
+		v = zvalp_data; 
 		if(op == GO_CASE_OP_READ){
 			// '->' followed by a callable, the value is ommited
 			GO_TO_EXTRACT_CALLABLE_IF_EARLY_CALLABLE();
@@ -1013,11 +1051,16 @@ PHP_FUNCTION(select)
 				zend_error(E_ERROR, "phpgo: select(): case %d: variable must be reference if not ommited", i+1);
 				goto error_return;
 			}
+#if PHP_MAJOR_VERSION < 7
 			value = v;
-			zval_add_ref(&value);
+#else
+			PHPGO_ALLOC_INIT_ZVAL(value);
+			PHPGO_MAKE_COPY_ZVAL(&v,value);
+#endif
+			phpgo_zval_add_ref(&v);
 		}else{
-			ALLOC_INIT_ZVAL(value);
-			MAKE_COPY_ZVAL(&v,value);
+			PHPGO_ALLOC_INIT_ZVAL(value);
+			PHPGO_MAKE_COPY_ZVAL(&v,value);
 		}
 
 		zend_hash_move_forward_ex(ht, &pointer);
@@ -1025,20 +1068,20 @@ PHP_FUNCTION(select)
 
 	extract_callable:
 		//#5 callable
-		if( zend_hash_get_current_data_ex(ht, (void**) &data, &pointer) != SUCCESS){
+		if( phpgo_zend_hash_get_current_data_ex(ht, (void**) &data, &pointer) != SUCCESS){
 			zend_error(E_ERROR, "phpgo: select(): error getting parameter %d data", i+1);
 			goto error_return;
 		};
-		if(!zend_is_callable(*data, 0, &func_name TSRMLS_CC)){
+		if(!zend_is_callable( zvalp_data, 0, &func_name TSRMLS_CC)){
 			zend_error(E_ERROR, "phpgo: case %d: function '%s' is not callable", i+1, func_name);
 			goto error_return;
 		}
-		zval* cb = *data; 
-		ALLOC_INIT_ZVAL(callback);
-		MAKE_COPY_ZVAL(&cb,callback);
+		zval* cb = zvalp_data; 
+		PHPGO_ALLOC_INIT_ZVAL(callback);
+		PHPGO_MAKE_COPY_ZVAL(&cb,callback);
 		
 		zend_hash_move_forward_ex(ht, &pointer);
-		if( pointer ){
+		if( pointer != PHPGO_INVALID_HASH_POSITION ){
 			zend_error(E_WARNING, "phpgo: select(): case %d: unexpected extra parameter detected after the callable, ommited", i+1);
 			//goto error_return;
 		}
@@ -1047,14 +1090,14 @@ PHP_FUNCTION(select)
 		
 		//need to addref the chan, value and callback, since they will be dtor'ed 
 		//by the defer{}
-		zval_add_ref(&chan);
+		phpgo_zval_add_ref(&chan);
 		case_array[i].chan = chan;
 		case_array[i].op = op;
 
-		zval_add_ref(&value);
+		phpgo_zval_add_ref(&value);
 		case_array[i].value = value; 
 
-		zval_add_ref(&callback);
+		phpgo_zval_add_ref(&callback);
 		case_array[i].callback = callback; 
 	}
 	
@@ -1065,14 +1108,26 @@ PHP_FUNCTION(select)
 	selector->case_count = case_count;
 	selector->case_array = case_array;
 	
-    MAKE_STD_ZVAL(z_selector);
+	//todo: php7: there may have mem leak here: 
+	//the make std zval allocated memory but not freed...
+    PHP5_AND_BELOW( PHPGO_MAKE_STD_ZVAL(z_selector) );
+	PHP7_AND_ABOVE( PHPGO_MAKE_STD_ZVAL_IN_STACK(z_selector) );
     object_init_ex(z_selector, ce_go_selector_ptr);
 	
-	MAKE_STD_ZVAL(arg1);
+    PHP5_AND_BELOW( PHPGO_MAKE_STD_ZVAL(arg1) );
+	PHP7_AND_ABOVE( PHPGO_MAKE_STD_ZVAL_IN_STACK(arg1) );
 	ZVAL_LONG(arg1, (long)selector);
 	
-	zend_call_method_with_1_params(&z_selector, ce_go_selector_ptr, &ce_go_selector_ptr->constructor, "__construct", NULL, arg1);
-	zval_ptr_dtor(&arg1);
+	zend_call_method_with_1_params(
+         PHP5_VS_7(&z_selector,z_selector),
+         ce_go_selector_ptr,
+		 &ce_go_selector_ptr->constructor,
+		 "__construct",
+		 NULL,
+		 arg1
+	);
+
+	phpgo_zval_ptr_dtor(&arg1);
 	
 	efree(args);
 	
@@ -1120,7 +1175,7 @@ PHP_METHOD(Mutex,__construct){
 	zval* z         = NULL;
 	
 	auto self = getThis();
-	mutex = zend_read_property(ce_go_mutex_ptr, self, "handle", sizeof("handle")-1, true TSRMLS_CC);
+	mutex = phpgo_zend_read_property(ce_go_mutex_ptr, self, "handle", sizeof("handle")-1, true TSRMLS_CC);
 
 	if(!mutex)
 		RETURN_FALSE;
@@ -1143,7 +1198,7 @@ PHP_METHOD(Mutex,__construct){
 	zval* z        = NULL;
 	
 	auto self = getThis();
-	mutex = zend_read_property(ce_go_mutex_ptr, self, "handle", sizeof("handle")-1, true TSRMLS_CC);
+	mutex = phpgo_zend_read_property(ce_go_mutex_ptr, self, "handle", sizeof("handle")-1, true TSRMLS_CC);
 
 	if(!mutex)
 		RETURN_FALSE;
@@ -1165,7 +1220,7 @@ PHP_METHOD(Mutex,__construct){
 	zval* z         = NULL;
 	
 	auto self = getThis();
-	mutex = zend_read_property(ce_go_mutex_ptr, self, "handle", sizeof("handle")-1, true TSRMLS_CC);
+	mutex = phpgo_zend_read_property(ce_go_mutex_ptr, self, "handle", sizeof("handle")-1, true TSRMLS_CC);
 
 	if(!mutex)
 		RETURN_FALSE;
@@ -1188,7 +1243,7 @@ PHP_METHOD(Mutex,__construct){
 	zval* z         = NULL;
 	
 	auto self = getThis();
-	mutex = zend_read_property(ce_go_mutex_ptr, self, "handle", sizeof("handle")-1, true TSRMLS_CC);
+	mutex = phpgo_zend_read_property(ce_go_mutex_ptr, self, "handle", sizeof("handle")-1, true TSRMLS_CC);
 
 	if(!mutex)
 		RETURN_FALSE;
@@ -1207,7 +1262,7 @@ PHP_METHOD(Mutex,__construct){
 	//printf("Mutex::__destruct\n");
 	
 	zval* self = getThis();
-	zval* mutex = zend_read_property(ce_go_mutex_ptr, self, "handle", sizeof("handle")-1, true TSRMLS_CC);
+	zval* mutex = phpgo_zend_read_property(ce_go_mutex_ptr, self, "handle", sizeof("handle")-1, true TSRMLS_CC);
 	
 	if(!mutex)
 		RETURN_FALSE;
@@ -1244,7 +1299,7 @@ PHP_METHOD(WaitGroup,__construct){
     }
 	
 	auto self = getThis();
-	wg = zend_read_property(ce_go_wait_group_ptr, self, "handle", sizeof("handle")-1, true TSRMLS_CC);
+	wg = phpgo_zend_read_property(ce_go_wait_group_ptr, self, "handle", sizeof("handle")-1, true TSRMLS_CC);
 
 	if(!wg)
 		RETURN_FALSE;
@@ -1265,7 +1320,7 @@ PHP_METHOD(WaitGroup,__construct){
 	zval* wg       = NULL;
 
 	auto self = getThis();
-	wg = zend_read_property(ce_go_wait_group_ptr, self, "handle", sizeof("handle")-1, true TSRMLS_CC);
+	wg = phpgo_zend_read_property(ce_go_wait_group_ptr, self, "handle", sizeof("handle")-1, true TSRMLS_CC);
 
 	if(!wg)
 		RETURN_FALSE;
@@ -1286,7 +1341,7 @@ PHP_METHOD(WaitGroup,__construct){
 	zval* wg       = NULL;
 
 	auto self = getThis();
-	wg = zend_read_property(ce_go_wait_group_ptr, self, "handle", sizeof("handle")-1, true TSRMLS_CC);
+	wg = phpgo_zend_read_property(ce_go_wait_group_ptr, self, "handle", sizeof("handle")-1, true TSRMLS_CC);
 
 	if(!wg)
 		RETURN_FALSE;
@@ -1308,7 +1363,7 @@ PHP_METHOD(WaitGroup,__construct){
 	zval* wg       = NULL;
 
 	auto self = getThis();
-	wg = zend_read_property(ce_go_wait_group_ptr, self, "handle", sizeof("handle")-1, true TSRMLS_CC);
+	wg = phpgo_zend_read_property(ce_go_wait_group_ptr, self, "handle", sizeof("handle")-1, true TSRMLS_CC);
 
 	if(!wg)
 		RETURN_FALSE;
@@ -1328,7 +1383,7 @@ PHP_METHOD(WaitGroup,__construct){
 	//printf("WaitGroup::__destruct\n");
 	
 	zval* self = getThis();
-	zval* wg = zend_read_property(ce_go_wait_group_ptr, self, "handle", sizeof("handle")-1, true TSRMLS_CC);
+	zval* wg = phpgo_zend_read_property(ce_go_wait_group_ptr, self, "handle", sizeof("handle")-1, true TSRMLS_CC);
 	
 	if(!wg)
 		RETURN_FALSE;
@@ -1413,25 +1468,36 @@ PHP_METHOD(Runtime, Goid)
 /* }}} */
 
 /* {{{ */
+#if PHP_MAJOR_VERSION < 7
+	#define __CREATE_CHANNEL_CALL_METHOD \
+		zend_call_method_with_1_params(&z_chan, ce_go_chan_ptr, \
+		&ce_go_chan_ptr->constructor,"__construct", NULL, arg1); 
+#else
+	#define __CREATE_CHANNEL_CALL_METHOD \
+		zend_call_method_with_1_params(z_chan, ce_go_chan_ptr, \
+		&ce_go_chan_ptr->constructor,"__construct", NULL, arg1); 
+#endif
+
 #define CREATE_CHANNEL(chan_name, z_chan) \
 static THREAD_LOCAL uint32_t sid = 0; \
 zval *arg1 = nullptr; \
 do{\
-	MAKE_STD_ZVAL(z_chan); \
+	PHP5_AND_BELOW( PHPGO_MAKE_STD_ZVAL(z_chan) ); \
+	PHP7_AND_ABOVE( PHPGO_MAKE_STD_ZVAL_IN_STACK(z_chan) ); \
     object_init_ex(z_chan, ce_go_chan_ptr); \
 \
-	MAKE_STD_ZVAL(arg1); \
+	PHP5_AND_BELOW( PHPGO_MAKE_STD_ZVAL(arg1) ); \
+	PHP7_AND_ABOVE( PHPGO_MAKE_STD_ZVAL_IN_STACK(arg1) ); \
 	array_init(arg1); \
 \
 	sprintf(chan_name, "timer_%d_%d", clock(), sid++); \
-	add_assoc_string_ex(arg1, "name", sizeof("name"), chan_name, 1); \
+	phpgo_add_assoc_string(arg1, "name", sizeof("name"), chan_name, 1); \
 \
-	add_assoc_long_ex(arg1, "capacity", sizeof("capacity"), 1 );  \
-	add_assoc_bool_ex(arg1, "copy", sizeof("copy"), 1 ); \
+	add_assoc_long_ex(arg1, "capacity", PHP5_VS_7(sizeof("capacity"),sizeof("capacity")-1), 1 );  \
+	add_assoc_bool_ex(arg1, "copy", PHP5_VS_7(sizeof("copy"), sizeof("copy")-1), 1 ); \
 \
-	zend_call_method_with_1_params(&z_chan, ce_go_chan_ptr, \
-		&ce_go_chan_ptr->constructor,"__construct", NULL, arg1); \
-	zval_ptr_dtor(&arg1); \
+	__CREATE_CHANNEL_CALL_METHOD \
+	phpgo_zval_ptr_dtor(&arg1); \
 }while(0)
 /* }}} */
 
@@ -1455,7 +1521,7 @@ PHP_METHOD(Time, Tick)
 	
 	bool go_creation = false;
 	if( !GoTime::CreateTimer(chan_name, nanoseconds, true, go_creation) ){
-		zval_ptr_dtor(&z_chan);
+		phpgo_zval_ptr_dtor(&z_chan);
 		RETURN_NULL();
 	}
 	if( go_creation ){
@@ -1486,7 +1552,7 @@ PHP_METHOD(Time, After)
 	
 	bool go_creation = false;
 	if( !GoTime::CreateTimer(chan_name, nanoseconds, false, go_creation) ){
-		zval_ptr_dtor(&z_chan);
+		phpgo_zval_ptr_dtor(&z_chan);
 		RETURN_NULL();
 	}
 	if( go_creation ){

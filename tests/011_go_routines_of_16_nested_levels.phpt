@@ -36,10 +36,10 @@ function f($level){
 	$a0e=1;$a1e=true;$a2e=false;$a3e=[1,2];$a4e=$obj;$a5e=1;$a6e=2;$a7e=3;$a8e=4;$a9e=5;$aae=6;$abe=7;$ace=8;$ade=9;$aee=10;$afe=11;
 	$a0f=1;$a1f=true;$a2f=false;$a3f=[1,2];$a4f=$obj;$a5f=1;$a6f=2;$a7f=3;$a8f=4;$a9f=5;$aaf=6;$abf=7;$acf=8;$adf=9;$aef=10;$aff=11;
 		
-	go('f', $level+1);
+	go('f', [$level+1]);
 }
 
-go('f', 0);
+go('f', [0]);
 
 Scheduler::join();
 

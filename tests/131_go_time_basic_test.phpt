@@ -38,24 +38,25 @@ go(function (){  //go 1
 	$chan = Time::After(1*Time::SECOND);  //go 2
 	
 	go(function () use($chan){   //go 3
-		$time0 = time(); $mtime0 = microtime();
+		$time0 = time(); $mtime0 = microtime(true);
 		while( true ){
 			$v = $chan->tryPop() ;
 			if( !empty($v) ) break;
 			Time::sleep(20 * Time::MILLISECOND); // = usleep(20 * 1000);
-			if( microtime()-$mtime0 > 1.05 ) {
+			
+			if( microtime(true)-$mtime0 > 1.05 ) {
 				echo "timer should expire at 1 second but did not expire until " 
-				     . ( microtime()-$mtime0 ) . " seconds\n"; 
+				     . ( microtime(true)-$mtime0 ) . " seconds\n"; 
 				return;
 			}
 		}
-		if( abs(microtime() - $v) > 0.05 ){
-			echo "timer should expire at ". microtime() . " but expired at " . $v . PHP_EOL; 
+		if( abs(microtime(true) - $v) > 0.05 ){
+			echo "timer should expire at ". microtime(true) . " but expired at " . $v . PHP_EOL; 
 			return;
 		}
-		if( microtime() - $mtime0 > 1.05 ){
+		if( microtime(true) - $mtime0 > 1.05 ){
 			echo "timer should expire at ". $mtime0 . "+1 second but expired at " 
-				  . microtime() . PHP_EOL; 
+				  . microtime(true) . PHP_EOL; 
 			return;
 		}
 		echo "verify Time::After : 1 second : pass\n";

@@ -1,11 +1,12 @@
+#include "stdinc.h"
 #include "go_select.h"
 #include "go_chan.h"
 #include <libgo/coroutine.h>
 /*
 * select - case
 */
-zval*  phpgo_select(GO_SELECT_CASE* case_array, long case_count TSRMLS_DC){
-	if(!case_count) return nullptr;
+bool  phpgo_select(GO_SELECT_CASE* case_array, long case_count TSRMLS_DC){
+	if(!case_count) return false;
 	
 	//calling srand everytime will cuase the result less randomized,remove
 	//srand(time(NULL)); 
@@ -28,7 +29,7 @@ zval*  phpgo_select(GO_SELECT_CASE* case_array, long case_count TSRMLS_DC){
 			chinfo = GoChan::ZvalToChannelInfo(z_chan TSRMLS_CC);
 			if( !chinfo ){
 				zend_error(E_ERROR, "phpgo: phpgo_select: null channel");
-				return nullptr;
+				return false;
 			}
 			if(case_array[i].op == GO_CASE_OP_READ){
 				// GoChan::TryPop:
@@ -37,18 +38,14 @@ zval*  phpgo_select(GO_SELECT_CASE* case_array, long case_count TSRMLS_DC){
 				// otherwise return the read zval
 				zval* data = GoChan::TryPop(chinfo);
 				if(data) {
-					//zval_dtor(case_array[i].value);
-					//INIT_PZVAL_COPY(case_array[i].value, data);
-					//ZVAL_COPY_VALUE(case_array[i].value, data); 
-					REPLACE_ZVAL_VALUE(&case_array[i].value, data, 1 /*invoke zval_copy_ctor*/);
-						   
+					PHPGO_REPLACE_ZVAL_VALUE(&case_array[i].value, data, 1 /*invoke zval_copy_ctor*/);						   
 					selected_case = &case_array[i];
 					goto exit_while;
 				}
 			}else if(case_array[i].op == GO_CASE_OP_WRITE){
 				auto rc = GoChan::TryPush(chinfo, case_array[i].value TSRMLS_CC);				
 				if( rc==GoChan::RCode::success ){
-					zval_add_ref(&case_array[i].value);
+					phpgo_zval_add_ref(&case_array[i].value);
 					selected_case = &case_array[i];
 					goto exit_while;
 				}
@@ -68,22 +65,23 @@ zval*  phpgo_select(GO_SELECT_CASE* case_array, long case_count TSRMLS_DC){
 	}while (i != start );
 	
 exit_while:
-	zval*   return_value = nullptr; 
+	PHP5_AND_BELOW( zval*   return_value = nullptr; );
+	PHP7_AND_ABOVE( zval    return_value;           );
 	if( selected_case ){
-		zval*** args         = nullptr;
-		auto    argc         = 0;
+		PHPGO_ARG_TYPE* args         = nullptr;
+		auto            argc         = 0;
 		if(selected_case->case_type != GO_CASE_TYPE_DEFAULT){
-			args    = (zval***)safe_emalloc(1, sizeof(zval **), 0);
-			args[0] = &selected_case->value;
+			args    = (PHPGO_ARG_TYPE*)safe_emalloc(1, sizeof(PHPGO_ARG_TYPE), 0);
+			args[0] = PHP5_VS_7(&selected_case->value, *selected_case->value);
 			argc    = 1;
 		}
 		
-		zval_add_ref(&selected_case->callback);
+		phpgo_zval_add_ref(&selected_case->callback);
 		if( call_user_function_ex(
 			EG(function_table), 
 			NULL, 
 			selected_case->callback,    // the callback callable
-			&return_value,              // zval** to receive return value
+			&return_value,              // zval**(PHP5)/zval*(PHP7) to receive return value
 			argc,                       // the parameter number required by the callback
 			args,                       // the parameter list of the callback
 			1, 
@@ -93,7 +91,7 @@ exit_while:
 			//goto cleanup;
 		}
 
-		zval_ptr_dtor(&selected_case->callback);
+		phpgo_zval_ptr_dtor(&selected_case->callback);
 		if(args) efree(args);
 	}
 	
@@ -101,5 +99,5 @@ exit_while:
 		g_Scheduler.CoYield();
 	}
 	
-	return return_value;
+	return true;
 }

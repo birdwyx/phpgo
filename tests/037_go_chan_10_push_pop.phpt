@@ -18,7 +18,7 @@ go(function($ch){
 		echo "push $i:\n";
 		$ch->push($i);
 	}
-},$ch);
+},[$ch]);
 
 go(function($ch){
 	$i = 1;
@@ -27,7 +27,7 @@ go(function($ch){
 		var_dump($ch->pop());
 		$i++;
 	}
-},$ch);
+},[$ch]);
 
 Scheduler::join();
 

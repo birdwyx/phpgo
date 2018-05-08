@@ -40,12 +40,12 @@ go(function($ch){
 	}
 	my_assert(1, $push == 10);
 	my_assert(1, $ch->tryPop() == "push#1");
-},$ch);
+},[$ch]);
 
 go(function($ch){
 	Time::sleep(1 * Time::SECOND);
 	my_assert(1, $ch->pop() == "push#0" );
-},$ch);
+},[$ch]);
 
 Scheduler::join();
 passtc(1, true);
@@ -57,7 +57,7 @@ $ch = new Chan(1);
 go(function($ch){
 	$v = $ch->pop();
 	my_assert(2, $v==="push#0");
-},$ch);
+},[$ch]);
 
 my_assert(2, $ch->push("push#0"));
 $ch->close();
@@ -73,7 +73,7 @@ $ch1 = new Chan(0);
 go(function($ch){
 	@$res = $ch->tryPush("push#1");
 	my_assert(3, $res===false);
-},$ch1);
+},[$ch1]);
 $ch1->close();
 
 Scheduler::join();
@@ -87,7 +87,7 @@ $ch = new Chan(1);
 go(function($ch){
 	$v = $ch->tryPop();
 	my_assert(4, $v==="push#0");
-},$ch);
+},[$ch]);
 
 $ch->push("push#0");
 $ch->close();
@@ -102,7 +102,7 @@ $ch = new Chan(1);
 go(function($ch){
 	$v = $ch->tryPop();
 	my_assert(5, $v===NULL);
-},$ch);
+},[$ch]);
 
 $ch->close();
 

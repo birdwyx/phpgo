@@ -1,3 +1,4 @@
+#include "stdinc.h"
 #include "go_chan.h"
 #include "defer.h"
 #include <libgo/coroutine.h>
@@ -8,19 +9,27 @@ std::map<std::string, ChannelInfo*> GoChan::map_name_to_chinfo;
 ChannelData::ChannelData(zval* zv, bool copy_flag TSRMLS_DC){
 #ifdef ZTS
 	from_thread_id = get_current_thread_id();
-	from_tsrm_ls   = TSRMLS_C;
 #endif
 	from_task_id   = co_sched.GetCurrentTaskID();
 	copy           = copy_flag;
 	z              = nullptr;
 	
 	if(copy){
-		ALLOC_PERMANENT_ZVAL(z);;      // allocate using malloc()
+		ALLOC_PERMANENT_ZVAL(z);      // allocate using malloc()
 		INIT_PZVAL_COPY(z, zv);         // copy the zval to shared memory
 		zval_persistent_copy_ctor(z);
 	}else{
-		zval_add_ref(&zv);
+#if PHP_MAJOR_VERSION < 7
 		z = zv;
+#else
+		// php7: the zv pointed to zval in stack and cannot be used 
+	    // for sharing, make a new zval in heap
+		zval* new_z;
+		MAKE_STD_ZVAL(new_z);
+		MAKE_COPY_ZVAL(&zv, new_z);
+		z = new_z;
+#endif
+		phpgo_zval_add_ref(&zv);
 	}
 }
 
@@ -196,10 +205,9 @@ zval* GoChan::Pop(void* handle){
 		//this is a complete copy, there won't be any pointer still hangs into 
 		//the share memory
 		zval_persistent_to_local_copy_ctor(z);
-
 	}else{
 		z = cd->z;
-		zval_add_ref(&z);
+		phpgo_zval_add_ref(&z);
 	}
 	
 	return z;
@@ -269,7 +277,7 @@ zval* GoChan::TryPop(void* handle){
 		
 	}else{
 		z = cd->z;
-		zval_add_ref(&z);
+		phpgo_zval_add_ref(&z);
 	}
 	
 	return z;
@@ -279,7 +287,7 @@ zval* GoChan::TryPop(void* handle){
 ChannelInfo* GoChan::ZvalToChannelInfo(zval* z_chan TSRMLS_DC){
 	extern zend_class_entry* ce_go_chan_ptr;
 	
-	auto z_handler = zend_read_property(ce_go_chan_ptr, z_chan, "handle",   sizeof("handle") - 1, true TSRMLS_CC);
+	auto z_handler = phpgo_zend_read_property(ce_go_chan_ptr, z_chan, "handle",   sizeof("handle") - 1, true TSRMLS_CC);
 	if( !z_handler || Z_TYPE_P(z_handler) == IS_NULL ){
 		return nullptr;
 	}

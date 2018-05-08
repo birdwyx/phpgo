@@ -34,7 +34,7 @@ $ch1 = new Chan(0);
 go(function($ch){
 	$res = $ch->push("push#1");
 	my_assert(1, $res===false);
-},$ch1);
+},[$ch1]);
 $ch1->close();
 
 Scheduler::join();
@@ -46,7 +46,7 @@ $ch1 = new Chan(0);
 go(function($ch){
 	$res = $ch->tryPush("push#1");
 	my_assert(2, $res===false);
-},$ch1);
+},[$ch1]);
 $ch1->close();
 
 Scheduler::join();
