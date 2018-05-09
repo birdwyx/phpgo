@@ -8,7 +8,7 @@ std::map<std::string, ChannelInfo*> GoChan::map_name_to_chinfo;
 
 ChannelData::ChannelData(zval* zv, bool copy_flag TSRMLS_DC){
 #ifdef ZTS
-	from_thread_id = get_current_thread_id();
+	from_thread_id = tsrm_thread_id();
 #endif
 	from_task_id   = co_sched.GetCurrentTaskID();
 	copy           = copy_flag;

@@ -9,17 +9,6 @@
 
 #define MAX_CHAN_NAME_LEN (32)
 
-#ifdef ZTS
-/* {{{ pthread_self wrapper */
-static inline THREAD_T get_current_thread_id() {
-    #ifdef _WIN32
-	    return (THREAD_T) GetCurrentThreadId();
-    #else
-	    return (THREAD_T) pthread_self();
-    #endif
-} /* }}} */
-#endif
-
 typedef struct{
 	size_t ref_count;
 	char   name[ MAX_CHAN_NAME_LEN + sizeof(uint32_t)];  // 4byte padding multi-byte string ending
