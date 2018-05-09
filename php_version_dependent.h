@@ -122,6 +122,16 @@
 
 	#define PZVAL_IS_REF(z)                                    Z_ISREF_P(z) 
 	#define IS_CONSTANT_TYPE_MASK                              (-1)
+
+	/*copied from zend_execute.c*/
+	zend_always_inline zend_vm_stack zend_vm_stack_new_page(size_t size) {
+		zend_vm_stack page = (zend_vm_stack)emalloc(size);
+
+		page->top = ZEND_VM_STACK_ELEMENTS(page);
+		page->end = (zval*)((char*)page + size);
+		page->prev = NULL;
+		return page;
+	}
 #endif
 
 zend_always_inline ZEND_API zval * phpgo_zend_read_property(
@@ -184,14 +194,4 @@ zend_always_inline ZEND_API int phpgo_zend_hash_find(
 #else
 	return zend_hash_find(ht, arKey, nKeyLength, pData);
 #endif		
-}
-
-/*copied from zend_execute.c*/
-zend_always_inline zend_vm_stack zend_vm_stack_new_page(size_t size) {
-	zend_vm_stack page = (zend_vm_stack)emalloc(size);
-
-	page->top = ZEND_VM_STACK_ELEMENTS(page);
-	page->end = (zval*)((char*)page + size);
-	page->prev = NULL;
-	return page;
 }
