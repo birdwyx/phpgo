@@ -11,5 +11,6 @@
 
 #include "defer.h"
 #include "global_defs.h"
+#include "php_version_dependent.h"
 
 #endif
