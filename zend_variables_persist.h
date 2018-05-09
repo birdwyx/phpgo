@@ -25,20 +25,6 @@
 #define PHP_5_5_API_NO  220121212
 #define PHP_5_6_API_NO  220131226
 
-#if PHP_MAJOR_VERSION < 7
-	#define ALLOC_PERSISTENT_ZVAL(z)                        \
-		do {												\
-			(z) = (zval*)pemalloc(sizeof(zval_gc_info), 1);	\
-			GC_ZVAL_INIT(z);								\
-		} while (0)
-#else
-	#define ALLOC_PERSISTENT_ZVAL(z)                        \
-		do{                                                 \
-			(z) = (zval*)pemalloc(sizeof(zval), 1);         \
-			bzero(z, sizeof(zval));                         \
-		}while(0)
-#endif
-
 #define MAX_HASHTABLE_LAYERS  (16)
 
 #if PHP_MAJOR_VERSION < 7

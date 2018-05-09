@@ -15,8 +15,8 @@ ChannelData::ChannelData(zval* zv, bool copy_flag TSRMLS_DC){
 	z              = nullptr;
 	
 	if(copy){
-		ALLOC_PERMANENT_ZVAL(z);      // allocate using malloc()
-		INIT_PZVAL_COPY(z, zv);         // copy the zval to shared memory
+		PHPGO_ALLOC_PERMANENT_ZVAL(z);      // allocate using malloc()
+		PHPGO_INIT_PZVAL_COPY(z, zv);         // copy the zval to shared memory
 		zval_persistent_copy_ctor(z);
 	}else{
 #if PHP_MAJOR_VERSION < 7
@@ -25,8 +25,8 @@ ChannelData::ChannelData(zval* zv, bool copy_flag TSRMLS_DC){
 		// php7: the zv pointed to zval in stack and cannot be used 
 	    // for sharing, make a new zval in heap
 		zval* new_z;
-		ALLOC_INIT_ZVAL(new_z);
-		MAKE_COPY_ZVAL(&zv, new_z);
+		PHPGO_ALLOC_INIT_ZVAL(new_z);
+		PHPGO_MAKE_COPY_ZVAL(&zv, new_z);
 		z = new_z;
 #endif
 		phpgo_zval_add_ref(&zv);
@@ -164,7 +164,7 @@ zval* GoChan::Pop(void* handle){
 	if(chinfo->closed){
 		if( !ch->TryPop(cd) || !cd ){
 			//channel closed, and no data available in channel
-			ALLOC_INIT_ZVAL(z);
+			PHPGO_ALLOC_INIT_ZVAL(z);
 			ZVAL_NULL(z);
 			return z;
 		}else{
@@ -186,7 +186,7 @@ zval* GoChan::Pop(void* handle){
 		}
 		
 		if( !cd || !cd->z ){
-			ALLOC_INIT_ZVAL(z);
+			PHPGO_ALLOC_INIT_ZVAL(z);
 			ZVAL_NULL(z);
 			return z;
 		}
@@ -197,9 +197,9 @@ zval* GoChan::Pop(void* handle){
 		//to the persistent memeory, now we copy it from persistent to
 		//our thread local
 		
-		ALLOC_ZVAL(z);
+		PHPGO_ALLOC_ZVAL(z);
 		*z = *(cd->z);
-		INIT_PZVAL(z);  //init reference
+		PHPGO_INIT_PZVAL(z);  //init reference
 		
 		//copy zval from persistent to thread local
 		//this is a complete copy, there won't be any pointer still hangs into 
@@ -247,7 +247,7 @@ zval* GoChan::TryPop(void* handle){
 	if(chinfo->closed){
 		if( !ch->TryPop(cd) || !cd ){
 			//channel closed, and no data available in channel
-			ALLOC_INIT_ZVAL(z);
+			PHPGO_ALLOC_INIT_ZVAL(z);
 			ZVAL_NULL(z);
 			return z;
 		}else{
@@ -266,9 +266,9 @@ zval* GoChan::TryPop(void* handle){
 		//to the persistent memeory, now we copy it from persistent to
 		//our thread local
 		
-		ALLOC_ZVAL(z);
+		PHPGO_ALLOC_ZVAL(z);
 		*z = *(cd->z);
-		INIT_PZVAL(z);  //init reference
+		PHPGO_INIT_PZVAL(z);  //init reference
 		
 		//copy zval from persistent to thread local
 		//this is a complete copy, there won't be any pointer still hangs into 

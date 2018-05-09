@@ -924,8 +924,7 @@ PHP_FUNCTION(select)
 
 	#define ARGN PHP5_VS_7(*args[argc-1], &args[argc-1])
 	/*the last argument == false, return the case array rather than execute the select*/
-	type =  Z_TYPE_P( ARGN );
-	if( type == IS_BOOL ){
+	if( PHPGO_ZVAL_IS_BOOL(ARGN) ){
 		exec = Z_BVAL_P( ARGN );
 		--case_count;
 	}

@@ -81,9 +81,9 @@ ZEND_API void zval_persistent_ptr_ctor(zval** zvalue){
 	  allocate a zval and let *zvalue point to it.
 	*/
 	zval* z;
-	ALLOC_PERSISTENT_ZVAL(z); 
+	PHPGO_ALLOC_PERSISTENT_ZVAL(z); 
 	//copy the zval content (**zvalue) to shared memory, and re-initialize the refcount 
-	*z = **zvalue; INIT_PZVAL(z);
+	*z = **zvalue; PHPGO_INIT_PZVAL(z);
 	
 	//change the zval** to point to z
 	*zvalue = z;
@@ -201,9 +201,9 @@ ZEND_API void zval_persistent_to_local_ptr_ctor(zval** zvalue){
 	  allocate a zval and let *zvalue point to it.
 	*/
 	zval* z;
-	ALLOC_ZVAL(z); 
+	PHPGO_ALLOC_ZVAL(z); 
 	//copy the zval content (**zvalue) to thread local, and re-initialize the refcount 
-	*z = **zvalue; INIT_PZVAL(z);
+	*z = **zvalue; PHPGO_INIT_PZVAL(z);
 	
 	//change the zval** to point to z
 	*zvalue = z;
