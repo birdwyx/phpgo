@@ -324,7 +324,7 @@ ZEND_API void _zval_persistent_dtor_func(zval *zvalue ZEND_FILE_LINE_DC)
 {
 #if PHP_MAJOR_VERSION < 7
 	#define __Z_STRING(zvalue) Z_STRVAL_P(zvalue)
-	#define STR_PERMENENT_FREE_REL(str)     if (ptr && !IS_INTERNED(str)) { pefree_rel(str,1); }
+	#define STR_PERMENENT_FREE_REL(str)     if (str && !IS_INTERNED(str)) { pefree_rel(str,1); }
 #else
 	#define __Z_STRING(zvalue) Z_STR_P(zvalue)
 	#define STR_PERMENENT_FREE_REL(zs)      zend_string_release(zs)
