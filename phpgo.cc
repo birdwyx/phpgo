@@ -1486,7 +1486,7 @@ do{\
 	array_init(arg1); \
 \
 	sprintf(chan_name, "timer_%d_%d", clock(), sid++); \
-	phpgo_add_assoc_string(arg1, "name", sizeof("name"), chan_name, 1); \
+	phpgo_add_assoc_string(arg1, "name", chan_name, 1); \
 \
 	add_assoc_long_ex(arg1, "capacity", PHP5_VS_7(sizeof("capacity"),sizeof("capacity")-1), 1 );  \
 	add_assoc_bool_ex(arg1, "copy", PHP5_VS_7(sizeof("copy"), sizeof("copy")-1), 1 ); \

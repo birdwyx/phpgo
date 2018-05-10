@@ -72,7 +72,7 @@
 	#define PHP5_AND_BELOW(x)
 	
 	/*php7 changed zend apis*/
-	#define phpgo_add_assoc_string(array, key, key_len, value, duplicate)   add_assoc_string(array, key, value)
+	#define phpgo_add_assoc_string(array, key, value, duplicate)   add_assoc_string(array, key, value)
 #else
 	#define phpgo_zval_ptr_dtor(ppz)                           zval_ptr_dtor(ppz)
 	#define phpgo_zval_add_ref(ppz)                            zval_add_ref(ppz)
@@ -110,7 +110,7 @@
 	#define PHP7_AND_ABOVE(x)
 	#define PHP5_AND_BELOW(x)                                  x
 
-	#define phpgo_add_assoc_string(array, key, key_len, value, duplicate)   add_assoc_string(array, key, key_len, value, duplicate)
+	#define phpgo_add_assoc_string(array, key, value, duplicate)   add_assoc_string(array, key, value, duplicate)
 #endif
 
 #if PHP_MAJOR_VERSION >= 7
