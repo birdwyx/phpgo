@@ -80,7 +80,7 @@
 	#define PHPGO_MAKE_STD_ZVAL(z)                             MAKE_STD_ZVAL(z)
 	#define PHPGO_ALLOC_PERMANENT_ZVAL(z)                      ALLOC_PERMANENT_ZVAL(z)
 	#define PHPGO_ALLOC_ZVAL(z)                                ALLOC_ZVAL(z)                 
-	#define PHPGO_ALLOC_INIT_ZVAL(z)                           PHPGO_ALLOC_INIT_ZVAL(z)
+	#define PHPGO_ALLOC_INIT_ZVAL(z)                           ALLOC_INIT_ZVAL(z)
 	#define PHPGO_INIT_PZVAL(z)                                INIT_PZVAL(z)
 	#define PHPGO_MAKE_COPY_ZVAL(ppz_src, pz_dest)             MAKE_COPY_ZVAL(ppz_src, pz_dest)
 	#define PHPGO_INIT_PZVAL_COPY(z_dest,z_src)                INIT_PZVAL_COPY(z_dest,z_src)
