@@ -105,6 +105,7 @@ ZEND_API void _zval_persistent_copy_ctor_func(zval *zvalue ZEND_FILE_LINE_DC)
 		case IS_LONG:
 		case IS_NULL:
 			break;
+#ifdef IS_CONSTANT
 		case IS_CONSTANT:
 			CHECK_ZVAL_STRING_REL(zvalue);
 #if PHP_MAJOR_VERSION < 7
@@ -115,6 +116,7 @@ ZEND_API void _zval_persistent_copy_ctor_func(zval *zvalue ZEND_FILE_LINE_DC)
 			Z_STR_P(zvalue) = zend_string_dup(Z_STR_P(zvalue), 1/*persistent*/);
 #endif
 			break;
+#endif
 		case IS_STRING:
 			CHECK_ZVAL_STRING_REL(zvalue);
 #if PHP_MAJOR_VERSION < 7
@@ -227,6 +229,7 @@ ZEND_API void _zval_persistent_to_local_copy_ctor_func(zval *zvalue ZEND_FILE_LI
 		case IS_LONG:
 		case IS_NULL:
 			break;
+#ifdef IS_CONSTANT
 		case IS_CONSTANT:
 			CHECK_ZVAL_STRING_REL(zvalue);
 #if PHP_MAJOR_VERSION < 7
@@ -237,6 +240,7 @@ ZEND_API void _zval_persistent_to_local_copy_ctor_func(zval *zvalue ZEND_FILE_LI
 			Z_STR_P(zvalue) = zend_string_dup(Z_STR_P(zvalue), 0/*not persistent*/);
 #endif
 			break;
+#endif
 		case IS_STRING:
 			CHECK_ZVAL_STRING_REL(zvalue);
 #if PHP_MAJOR_VERSION < 7
@@ -334,7 +338,9 @@ ZEND_API void _zval_persistent_dtor_func(zval *zvalue ZEND_FILE_LINE_DC)
 	
 	switch (Z_TYPE_P(zvalue) & IS_CONSTANT_TYPE_MASK) {
 		case IS_STRING:
+#ifdef IS_CONSTANT
 		case IS_CONSTANT:
+#endif
 			CHECK_ZVAL_STRING_REL(zvalue);
 			STR_PERMENENT_FREE_REL( __Z_STRING(zvalue) );
 			break;

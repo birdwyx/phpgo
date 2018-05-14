@@ -6,11 +6,14 @@ Go redis connection shared by mutilple go routines (deemed to be FAIL)
 	echo "skip";
 	return;
 	
-	if( !class_exists ("Redis") ){
+	if( !class_exists ("Redis") | !getenv('TEST_REDIS_SERVER') ){
 		echo "skip\n";
 	}else{
 		$r = new Redis();
-		$r->connect("127.0.0.1", "6379");
+		
+		$server = getenv('TEST_REDIS_SERVER');
+		$arr = explode($server, ':');
+		$r->connect($arr[0], $arr[1]);
 		$r->set("___test__redis_availability__", 1);
 		if( $r->get("___test__redis_availability__") != 1 )
 			echo "skip\n";

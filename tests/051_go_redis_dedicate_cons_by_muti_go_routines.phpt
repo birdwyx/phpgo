@@ -3,11 +3,14 @@ Go redis dedicated connection by mutilple go routines
 
 --SKIPIF-- 
 <?php   
-	if( !class_exists ("Redis") ){
+	if( !class_exists ("Redis") | !getenv('TEST_REDIS_SERVER') ){
 		echo "skip\n";
 	}else{
 		$r = new Redis();
-		$r->connect("127.0.0.1", "6379");
+		
+		$server = getenv('TEST_REDIS_SERVER');
+		$arr = explode(':', $server);
+		$r->connect($arr[0], $arr[1]);
 		$r->set("___test__redis_availability__", 1);
 		if( $r->get("___test__redis_availability__") != 1 )
 			echo "skip\n";
@@ -25,17 +28,27 @@ function subtc($seq){
     echo "SUB-TC: #$seq\n";
 }
 
+$server = getenv('TEST_REDIS_SERVER');
+if(!$server){
+	echo "please set environment variable TEST_REDIS_SERVER (host:port) for this test to run\n";
+	return;
+}
+$arr = explode(':', $server);
+$host = !empty($arr[0])? $arr[0] : "127.0.0.1"; $port = !empty($arr[1]) ? $arr[1]:6379;
+
 subtc(1);
 $ch = new Chan(["capacity"=>1000]);
 
 $redis = new \Redis();
-$redis->connect("127.0.0.1", "6379");
+$redis->connect($host, $port);
 
 go(function() use($redis){
 	for($i=0; $i<10000; $i++){
 		$redis->set("foo", $i);
+		
+		$r = $redis->get("foo");
 		//echo "foo: " . $redis->get("foo") . PHP_EOL;
-		assert( ($r = $redis->get("foo")) == $i);
+		assert( $r == $i);
 		
 		if($r != $i) break;
 	}
@@ -44,12 +57,13 @@ go(function() use($redis){
 });
 
 $redis = new \Redis();
-$redis->connect("127.0.0.1", "6379");
+$redis->connect($host, $port);
 
 go(function() use($redis){
 	for($i=0; $i<10000; $i++){
 		$redis->set("bar", $i);
-		assert( ($r = $redis->get("bar")) == $i);
+		$r = $redis->get("bar");
+		assert( $r == $i);
 		
 		if($r != $i) break;
 	}

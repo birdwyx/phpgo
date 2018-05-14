@@ -103,8 +103,8 @@ void dump_zval(zval* zv){
 		php_printf("zval %p------>\n", zv);
 		php_printf("u1.v.type:                    %02x(%s)\n", zv->u1.v.type, val_types[zv->u1.v.type]);
 		php_printf("u1.v.type_flags:              %02x\n", zv->u1.v.type_flags);
-		php_printf("u1.v.const_flags:             %02x\n", zv->u1.v.const_flags);
-		php_printf("u1.v.reserved:                %02x\n", zv->u1.v.reserved);
+		//php_printf("u1.v.const_flags:             %02x\n", zv->u1.v.const_flags);
+		//php_printf("u1.v.reserved:                %02x\n", zv->u1.v.reserved);
 		php_printf("u1.v == u1.type_info ==:      %08x\n", zv->u1.type_info);
 		php_printf("u2:                           %08x\n", zv->u2.next);
 		php_printf("value:                        %016x\n", zv->value.lval);

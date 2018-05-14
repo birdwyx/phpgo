@@ -80,7 +80,7 @@ static zend_always_inline void i_zval_persistent_ptr_dtor(zval *zval_ptr ZEND_FI
 {
 	if (Z_REFCOUNTED_P(zval_ptr)) {
 		zend_refcounted *ref = Z_COUNTED_P(zval_ptr);
-		if (!--GC_REFCOUNT(ref)) {
+		if (!Z_DELREF_P(zval_ptr)) {
 			_zval_persistent_dtor_func(zval_ptr ZEND_FILE_LINE_RELAY_CC);
 		} else {
 			//gc_check_possible_root(ref);
