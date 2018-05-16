@@ -7,14 +7,46 @@
 #include <libgo/freeable.h>
 #include <libgo/task_local_storage.h>
 #include <iostream>
-//#ifdef ZTS
-#include <boost/thread.hpp>
-//#endif
 #include "task_listener.h"
 
 using namespace std;
 using namespace co;
 
+/*
+believe or not, the following code can stop a segmentation fault 
+after the php execution, which can be triggered by the following 
+steps:
+1. pre-condition: php5/7, zts or non-zts enviroment
+2. gcc version 4.8.5 ( which may not matter at all )
+3. libgo and phpgo make-install'ed; phpgo extension enbaled
+4. #export LD_PRELOAD=liblibgo.so (this does matter)
+5. #php -r "echo 123"; (or any other php execution)
+6. you'll see output: 
+123Segmentation fault
+
+with the following code in place, the segmentation fault is gone.
+anyone who can explain this should get a Nobel Prize :)))
+*/
+class A
+{
+public:
+	A(){
+	}
+};
+
+template <class T> struct B
+{
+	static A const e;
+};
+
+template <class T> 
+A const  B<T>::e = A();
+
+/**it's the function below that stops the segv*/
+inline  A func(){
+	return B<int>::e;
+}
+/*<---------*/
 
 ZEND_EXTERN_MODULE_GLOBALS(phpgo)
 
