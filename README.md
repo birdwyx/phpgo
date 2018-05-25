@@ -1,14 +1,29 @@
 # phpgo
-PHPGO: A php extension that brings into php the go core features: go routines, channel, select, mutex, waitgroup, timer and scheduler... now supports php5.5 to 7.2 on linux
 
-# Getting start
-## 1.install libgo
+PHPGO: A php extension that brings into php the go core features:
+###### - go routine
+###### - channel
+###### - select
+###### - mutex
+###### - waitgroup
+###### - timer
+###### - go routine scheduler
+
+phpgo also brings in a break-through feature which: 
+###### - automatically coverts the synchronized function calls in the php extensions (e.g. PDO, redis... etc) into synchronized 
+This allows the swithing of execution to another go routine if one go routine is blocked by blocking I/O, thus provides hundred to thousand times of concurrent access under the same running environment
+
+phpgo supports php5.5 to 7.2 on linux as of today
+
+# Getting started
+## 1. Install libgo
 The phpgo relies on the the libgo library to provide the underlying coroutine capability, which includes:
 - coroutine creation, execution and scheduling
 - coroutine local storage
 - coroutine listener with the task swap hook capability
 - go channel
 - go mutex
+- hook of system calls (thus allow corroutine switching during blocking system call)
 
 (libgo contains more excellent features and you may want to check them out @ https://github.com/yyzybb537/libgo )
 
@@ -26,7 +41,7 @@ steps to install the libgo:
 #ldconfig
 ```
 
-### 1.1 for a better performance: install libgo with boost context support
+### 1.1 For a better performance: install libgo with boost context support
 libgo supports using boost context for context switching (default context switching mechanism is u_context) which provides a much better coroutine switch performance (5+ times). 
 
 If you are using the phpgo under production environment, it's recommended that you enable the boost context switching by the steps below:
@@ -49,9 +64,7 @@ Then you'll need to add -DENABLE_BOOST_CONTEXT=ON option to the "cmake" command
 ```
 note: if you see compiler errors during the "make" step, make sure you've done the "rm -rf * " under the build directory
 
-
-## 2. build phpgo from source - supported on linux OS 
-
+## 2. Build phpgo from source - supported on linux OS 
 steps to build phpgo:
 ```
 #git clone https://github.com/birdwyx/phpgo
@@ -67,21 +80,25 @@ then add the following line into the php.ini
 extension=phpgo.so
 ```
 
-## First phpgo program
+## 3. First phpgo program
 
 hello_world.php:
 ```
 <?php
-use \go\Scheduler;
+use \go\Scheduler; //for the Scheduler functions 
 
-go( function(){
+go(function(){   //creates a go routine
     echo "Hello World!" . PHP_EOL;
 });
 
-Scheduler::join();
+Scheduler::join();  //execute all go routines
 ```
-use class Sechduler under the go namespace for the Scheduler functions 
-the go() function creates a go routine, this go routine is executed later by the Scheduler::join()
-Scheduler::join executes all go routines (in this example there is only 1 go routine) and until all go routines returns
- 
+
+run this program under the command line:
+```
+#php hello_world.php
+Hello World!
+#
+```
+
 Have fun!
