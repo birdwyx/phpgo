@@ -11,9 +11,7 @@ php:
     - '7.2'
 
 before_install:
-    - which php-config
     - php --ini
-    - find / -name "php-config"
     - sudo add-apt-repository -y ppa:kojoley/boost
     - sudo apt-get update -y || echo "update error"
     - lsb_release -a
