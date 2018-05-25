@@ -5,10 +5,11 @@ PHPGO: A php extension that brings into php the go core features: go routines, c
 ## 1.install libgo
 
 The phpgo relies on the the libgo library to provide the underlying coroutine capability, which includes:
-### coroutine creation, execution and scheduling
-### go channel
-### go mutex
-### coroutine local storage
+##### - coroutine creation, execution and scheduling
+##### - coroutine local storage
+##### - coroutine listener with the task swap hook capability
+##### - go channel
+##### - go mutex
 (libgo contains more excellent features and you may be want to check them out at https://github.com/yyzybb537/libgo )
 
 steps to install the libgo:
