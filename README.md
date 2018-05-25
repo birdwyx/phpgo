@@ -93,8 +93,10 @@ Hello World!
 
 Have fun!
 
-## 2. Using phpgo under php-fpm mode
+# 2. Using phpgo under fast-cgi mode
 
+phpgo can be used under fast-cgi (php-fpm) mode, 
+to be updated...
 
 
 # 3. Go Live
