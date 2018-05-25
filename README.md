@@ -78,6 +78,13 @@ steps to build phpgo:
 #make
 #make install
 ```
+you may probably want to do a test first to ensure everything is fine before start using of phpgo
+```
+#cd phpgo
+#export TEST_PHP_EXECUTABLE=./test_php
+#php run-tests.php tests
+```
+ensure there are no FAIL'ed test cases. You'll need to mannually ensure the PDO/redis works well if the related cases are skipped.
 
 then add the following line into the php.ini
 ```
