@@ -9,6 +9,11 @@ before_install:
     - sudo add-apt-repository -y ppa:kojoley/boost
     - sudo apt-get update -y || echo "update error"
     - lsb_release -a
+    - git clone https://github.com/yyzybb537/libgo /tmp/libgo
+    - cd /tmp/libgo
+    - mkdir build
+    - sudo rm * -rf && cmake .. -DENABLE_BOOST_CONTEXT=ON && make -j4 && make install
+    - sudo ldconfig
 
 install:
     - git clone https://github.com/yyzybb537/Boost-dev-bin.git /tmp/boost-dev-bin && sudo dpkg -i /tmp/boost-dev-bin/libboost1.59-all-dev.deb
