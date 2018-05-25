@@ -16,14 +16,18 @@ install:
     - sudo ldconfig
     - sudo apt-get install -y -qq cmake 
     - git clone https://github.com/yyzybb537/libgo /tmp/libgo
+    - pushd
     - cd /tmp/libgo && mkdir build && cd build
     - sudo rm * -rf && cmake .. -DENABLE_BOOST_CONTEXT=ON && make -j4 && sudo make install
     - sudo ldconfig
 
 script: 
-    - mkdir build; pushd build;
-    - cmake .. && make -j4 && make install
-    - popd;
+    - popd
+    - phpize
+    - ./configure -with-php-config=/usr/local/php/bin/php-config
+    - make && sudo make install
+    - export TEST_PHP_EXECUTABLE=./test_php
+    - php run-tests.php tests
 
 after_success:
     - 
