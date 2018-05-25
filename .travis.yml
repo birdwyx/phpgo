@@ -32,10 +32,10 @@ install:
 script: 
     - popd
     - phpize
-    - ./configure -with-php-config=/usr/local/php/bin/php-config
+    - ./configure --with-php-config=`which php-config`
     - make && sudo make install
-    - export TEST_PHP_EXECUTABLE=./test_php
-    - php run-tests.php tests
+    - sudo echo "extension=phpgo.so" > `php --ini | grep "Scan for additional" | awk '{print $7 "/phpgo.ini"}'`
+    - export TEST_PHP_EXECUTABLE=./test_php && php run-tests.php tests
 
 after_success:
     - 
