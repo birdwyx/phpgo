@@ -29,9 +29,9 @@ install:
 
 script: 
     - popd
-    - phpize
-    - ./configure --with-php-config=`which php-config`
-    - make && sudo make install
+    - sudo phpize
+    - sudo ./configure --with-php-config=`which php-config`
+    - sudo make clean && cat Makefile && sudo make && sudo make install
     - sudo echo "extension=phpgo.so" > `php --ini | grep "Scan for additional" | awk '{print $7 "/phpgo.ini"}'`
     - export TEST_PHP_EXECUTABLE=./test_php && php run-tests.php tests
 
