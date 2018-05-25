@@ -13,7 +13,8 @@ phpgo: A php extension that brings into php the go core features:
 
 phpgo also brings in a break-through feature which: 
 - automatically coverts the synchronized function calls in the php extensions (e.g. PDO, redis... etc) into asynchronized 
-This allows the swithing of execution to another go routine if one go routine is blocked by blocking I/O, thus provides hundred to thousand times of concurrent execution under the same running environment
+
+This allows the swithing of execution to another go routine if one go routine is blocked by blocking I/O, thus provides hundred to thousand times of concurrent executions under the same running environment
 
 phpgo can be used under both CLI mode and fast-cgi (php-fpm) mode
 
@@ -56,13 +57,13 @@ steps to build phpgo:
 #make install
 ```
 
->you may probably want to do a test first to ensure everything is fine before start using phpgo
->```
->#cd phpgo
->#export TEST_PHP_EXECUTABLE=./test_php
->#php run-tests.php tests
->```
->ensure there are no FAIL'ed test cases
+>>you may probably want to do a test first to ensure everything is fine before start using phpgo
+>>```
+>>#cd phpgo
+>>#export TEST_PHP_EXECUTABLE=./test_php
+>>#php run-tests.php tests
+>>```
+>>ensure there are no FAIL'ed test cases
 
 then, add the following line into the php.ini
 ```
@@ -92,7 +93,11 @@ Hello World!
 
 Have fun!
 
-# 2. Go Live
+## 2. Using phpgo under php-fpm mode
+
+
+
+# 3. Go Live
 
 libgo supports using boost context for context switching (default context switching mechanism is u_context) which provides a much better coroutine switch performance (5+ times). 
 
