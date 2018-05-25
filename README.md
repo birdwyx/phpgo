@@ -1,17 +1,21 @@
 # phpgo
 
-PHPGO: A php extension that brings into php the go core features:
-###### - go routine
-###### - channel
-###### - select
-###### - mutex
-###### - waitgroup
-###### - timer
-###### - go routine scheduler
+phpgo's mission is to provide a small, simple, stable extension for existing and future PHP applications for much higher concurrency, better performance, with lower resouce consumption and work well with most of the existing php features, extensions and frameworks
+
+phpgo: A php extension that brings into php the go core features:
+- go routine
+- channel
+- select
+- mutex
+- waitgroup
+- timer
+- go routine scheduler
 
 phpgo also brings in a break-through feature which: 
-###### - automatically coverts the synchronized function calls in the php extensions (e.g. PDO, redis... etc) into synchronized 
-This allows the swithing of execution to another go routine if one go routine is blocked by blocking I/O, thus provides hundred to thousand times of concurrent access under the same running environment
+- automatically coverts the synchronized function calls in the php extensions (e.g. PDO, redis... etc) into asynchronized 
+This allows the swithing of execution to another go routine if one go routine is blocked by blocking I/O, thus provides hundred to thousand times of concurrent execution under the same running environment
+
+phpgo can be used under both CLI mode and fast-cgi (php-fpm) mode
 
 phpgo supports php5.5 to 7.2 on linux as of today
 
