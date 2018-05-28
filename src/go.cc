@@ -4,8 +4,8 @@
 
 #include <libgo/coroutine.h>
 #include <libgo/task.h>
-#include <libgo/freeable.h>
-#include <libgo/task_local_storage.h>
+#include "freeable.h"
+#include "task_local_storage.h"
 #include <iostream>
 #include "task_listener.h"
 
@@ -202,7 +202,7 @@ bool php_go_explode_array_arg(PHPGO_ARG_TYPE* args, size_t* exploded_size){
    3. ...
 */
 
-void* phpgo_go(
+bool phpgo_go(
 	uint64_t go_routine_options, 
 	uint32_t stack_size, 
 	zend_uint argc, 
@@ -228,7 +228,7 @@ void* phpgo_go(
 #endif	
 	//allocate a new stack for the go routine
 	zend_vm_stack go_routine_vm_stack = zend_vm_stack_new_page( argc > GR_VM_STACK_PAGE_SIZE ? argc : GR_VM_STACK_PAGE_SIZE );
-	if(!go_routine_vm_stack) return nullptr;
+	if(!go_routine_vm_stack) return false;
 
 #if PHP_MAJOR_VERSION < 7
 	//set a stack start magic 0xdeaddeaddeaddead in stack bottom
@@ -259,7 +259,7 @@ void* phpgo_go(
 	PhpgoContext* parent_ctx = new PhpgoContext(GoRoutineOptions::gro_default TSRMLS_CC);
 	if(!parent_ctx){
 		efree(go_routine_vm_stack);
-		return nullptr;
+		return false;
 	}
 	bool include_http_globals = go_routine_options & GoRoutineOptions::gro_isolate_http_globals;
 	parent_ctx->SwapOut(include_http_globals);
@@ -270,7 +270,7 @@ void* phpgo_go(
 		stack_size = GR_MIN_STACK_SIZE;      /*at least 32K stack, if size provided*/
 	}
 		
-	auto tk = go_stack(stack_size) [go_routine_vm_stack, go_routine_options, parent_ctx TSRMLS_CC] ()mutable {
+	go_stack(stack_size) [go_routine_vm_stack, go_routine_options, parent_ctx TSRMLS_CC] ()mutable {
 		defer{
 			delete parent_ctx;
 			if(!EG_VM_STACK){
@@ -418,7 +418,7 @@ void* phpgo_go(
 		}
 	};
 	
-	return tk;
+	return true;
 }
 
 /*

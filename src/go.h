@@ -11,6 +11,6 @@ enum GoRoutineOptions{
 /*pure functions*/
 bool     phpgo_initialize();
 void     phpgo_go_debug(unsigned long debug_flag);
-void*    phpgo_go(uint64_t go_routine_options, uint32_t stack_size, zend_uint argc, PHPGO_ARG_TYPE *args TSRMLS_DC);
+bool     phpgo_go(uint64_t go_routine_options, uint32_t stack_size, zend_uint argc, PHPGO_ARG_TYPE *args TSRMLS_DC);
 
 #endif
