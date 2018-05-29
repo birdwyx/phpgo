@@ -3,6 +3,7 @@ Go mysql dedicated PDO connection by mutilple go routines
 
 --SKIPIF-- 
 <?php   
+	echo "skip\n";
 	if( !class_exists ("PDO") ){
 		echo "skip\n";
 	}else{
