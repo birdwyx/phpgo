@@ -1,6 +1,7 @@
 #pragma once
-#include <libgo/freeable.h>
-#include <libgo/task_local_storage.h>
+#include <libgo/scheduler.h>
+#include "freeable.h"
+#include "task_local_storage.h"
 
 using namespace co;
 
@@ -92,7 +93,9 @@ do{ \
 }while(0)
 
 struct PhpgoBaseContext{
+	uint64_t                   task_id;
 	uint64_t                   go_routine_options;
+	bool                       go_routine_finished;
 
 #if PHP_MAJOR_VERSION < 7
 	/*go routine running environment*/
@@ -161,6 +164,12 @@ public:
         this->EG_vm_stack_top          =  EG(vm_stack_top            );
 		this->EG_vm_stack_end          =  EG(vm_stack_end            );
 #endif
+		
+		// the coroutine ( not the scheduler ) is finished 
+		// free the task local storage (including this context itself)
+		if(this->go_routine_finished && this->task_id) {
+			TaskLocalStorage::FreeSpecifics(this->task_id);
+		}
 	}
 
 	inline void SwapIn(bool include_http_globals){
@@ -201,6 +210,10 @@ public:
 			SET_HTTP_REQUEST_GLOBAL(  this->http_request_global); /*set $_REQUEST*/     
 		}
 	}
+	
+	inline void SetFinished(bool finished){
+		this->go_routine_finished = finished;
+	}
 };
 
 struct PhpgoContext : public PhpgoBaseContext, public FreeableImpl{
@@ -210,7 +223,9 @@ public:
 		TSRMLS_SET_CTX(this->TSRMLS_C);
 #else
 #endif
-		this->go_routine_options = options;
+		this->go_routine_options  = options;
+		this->go_routine_finished = false;
+		this->task_id             = g_Scheduler.GetCurrentTaskID();
 	}
 };
 

@@ -162,7 +162,21 @@ zval* GoChan::Pop(void* handle){
 	// slave routines, thus allow the master to broadcast a signal (typically treated 
 	// as close signal) to all slave routines
 	if(chinfo->closed){
-		if( !ch->TryPop(cd) || !cd ){
+		bool ok = false;
+		if (!co_sched.IsCoroutine()) {
+			auto pop = false;
+			go[ch,&cd,&ok,&pop]{
+				ok  = ch->TryPop(cd);
+				pop = true;
+			};
+			while(!pop){
+				co_sched.Run();
+			}
+		}else{
+			ok = ch->TryPop(cd);
+		}
+		
+		if( !ok || !cd ){
 			//channel closed, and no data available in channel
 			PHPGO_ALLOC_INIT_ZVAL(z);
 			ZVAL_NULL(z);
@@ -177,7 +191,10 @@ zval* GoChan::Pop(void* handle){
 		// run the scheduler (so that the go routines will run and may
 		// push to the channel) until successfully read from the channel 
 		if (!co_sched.IsCoroutine()) {
-			while( !ch->TryPop(cd) ){
+			go[ch, &cd]{
+				*ch >> cd;
+			};
+			while(!cd){
 				co_sched.Run();
 			}
 		}else{

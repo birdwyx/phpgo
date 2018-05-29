@@ -35,6 +35,7 @@ script:
     - echo "extension=phpgo.so" > `php --ini | grep "Scan for additional" | awk '{print $7 "/phpgo.ini"}'`
     - export TEST_PHP_EXECUTABLE=./test_php 
     - php run-tests.php tests > test_result.txt
+    - cat tests/002*.log
     - cat test_result.txt
     - cat test_result.txt | grep failed | awk '{print $4}'
 

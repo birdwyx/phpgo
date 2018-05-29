@@ -759,9 +759,9 @@ PHP_FUNCTION(go)
         RETURN_FALSE;
 	}
 	
-	void* co = phpgo_go( GoRoutineOptions::gro_default, 0/*stack_size*/, argc, args TSRMLS_CC);
+	bool ok = phpgo_go( GoRoutineOptions::gro_default, 0/*stack_size*/, argc, args TSRMLS_CC);
 	
-	RETURN_LONG( (long)co );
+	RETURN_BOOL( ok);
 }
 
 /* {{{ proto int go( array $options, callable $func, ...$args )
@@ -844,9 +844,9 @@ PHP_FUNCTION(goo)
     }
 
 	uint64_t options = isolate_http_globals ? GoRoutineOptions::gro_isolate_http_globals : GoRoutineOptions::gro_default;
-	void* co = phpgo_go( options, stack_size, argc - 1, &args[1] TSRMLS_CC);
+	bool ok = phpgo_go( options, stack_size, argc - 1, &args[1] TSRMLS_CC);
 	
-	RETURN_LONG( (long)co );
+	RETURN_BOOL( ok );
 }
 
 /* {{{ proto void go_debug($flag)

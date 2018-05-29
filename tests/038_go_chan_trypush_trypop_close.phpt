@@ -109,6 +109,31 @@ $ch->close();
 Scheduler::join();
 passtc(5, true);
 
+//=======>
+subtc(6, "chan close test - read closed channel from outside go routine - data not available - chan(0)");
+$ch = new Chan(0);
+$ch->close();
+
+$v = $ch->Pop();
+passtc(6, $v===NULL);
+
+//=======>
+subtc(7, "chan close test - read closed channel from outside go routine - data not available - chan(1)");
+$ch = new Chan(1);
+$ch->close();
+
+$v = $ch->Pop();
+passtc(7, $v===NULL);
+
+//=======>
+subtc(8, "chan close test - read closed channel from outside go routine - data available - chan(1)");
+$ch = new Chan(1);
+$ch->Push("abc");
+$ch->close();
+
+$v = $ch->Pop();
+passtc(8, $v==="abc");
+
 ?>
 --EXPECT--
 SUB-TC #1: tryPush tryPop test
@@ -121,4 +146,11 @@ SUB-TC #4: chan close test - ensure data can be tryPop from close channel if ava
 SUB-TC #4: PASS
 SUB-TC #5: chan close test - ensure NULL retuned for tryPop if channel closed and no data ready
 SUB-TC #5: PASS
+SUB-TC #6: chan close test - read closed channel from outside go routine - data not available - chan(0)
+SUB-TC #6: PASS
+SUB-TC #7: chan close test - read closed channel from outside go routine - data not available - chan(1)
+SUB-TC #7: PASS
+SUB-TC #8: chan close test - read closed channel from outside go routine - data available - chan(1)
+SUB-TC #8: PASS
+
 
