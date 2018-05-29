@@ -14,7 +14,7 @@ class TestClass{
 
 function f($level){
 	//echo "level:$level\n";
-	if($level == 255)
+	if($level == 254)
 	return;
 	$obj = new TestClass();
 	
