@@ -34,13 +34,12 @@ script:
     - make clean && make && make install
     - echo "extension=phpgo.so" > `php --ini | grep "Scan for additional" | awk '{print $7 "/phpgo.ini"}'`
     - export TEST_PHP_EXECUTABLE=`pwd`/test_php 
-    - php run-tests.php tests > test_result.txt
-    - cat tests/002*.log
-    - cat test_result.txt
-    - cat test_result.txt | grep failed | awk '{print $4}'
+    - php run-tests.php tests | tee test_result.txt
+    - cat test_result.txt | grep -A 10000 'FAILED TEST SUMMARY' | grep tests | sed 's/.*\[//g' | sed 's/\.phpt\]/\.log/g' | xargs cat
+    - exit `cat test_result.txt | grep 'Tests failed' | awk '{print $4}'`
 
 after_success:
-    - 
+    - echo "build succeeded" 
 
 branches:
     only:
@@ -49,3 +48,4 @@ branches:
 
 notifications:
   email: true
+
