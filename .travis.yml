@@ -33,10 +33,11 @@ script:
     - ./configure --with-php-config=`which php-config`
     - make clean && make && make install
     - echo "extension=phpgo.so" > `php --ini | grep "Scan for additional" | awk '{print $7 "/phpgo.ini"}'`
+    - echo "export LD_PRELOAD=liblibgo.so" > test_php  && echo `which php` \"\$\@\" >> test_php && chmod 755 test_php
     - export TEST_PHP_EXECUTABLE=`pwd`/test_php 
     - php run-tests.php tests | tee test_result.txt
     - cat test_result.txt | grep -A 10000 'FAILED TEST SUMMARY' | grep tests | sed 's/.*\[//g' | sed 's/\.phpt\]/\.log/g' | xargs cat
-    - exit `cat test_result.txt | grep 'Tests failed' | awk '{print $4}'`
+    - echo | exit `cat test_result.txt | grep 'Tests failed' | awk '{print $4}'`
 
 after_success:
     - echo "build succeeded" 
