@@ -31,10 +31,12 @@ script:
     - popd
     - phpize
     - ./configure --with-php-config=`which php-config`
-    - make clean && cat Makefile && make && make install
+    - make clean && make && make install
     - echo "extension=phpgo.so" > `php --ini | grep "Scan for additional" | awk '{print $7 "/phpgo.ini"}'`
     - export TEST_PHP_EXECUTABLE=./test_php 
-    - php run-tests.php tests | grep failed | awk '{print $3}'
+    - php run-tests.php tests > test_result.txt
+    - cat test_result.txt
+    - cat test_result.txt | grep failed | awk '{print $4}'
 
 after_success:
     - 
