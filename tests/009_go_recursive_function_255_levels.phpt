@@ -1,5 +1,5 @@
 --TEST--
-Go recursive function with 255 nested levels
+Go recursive function with 128 nested levels
 
 --FILE--
 <?php
@@ -14,7 +14,7 @@ class TestClass{
 
 function f($level){
 	//echo "level:$level\n";
-	if($level == 254)
+	if($level == 128)
 	return;
 	$obj = new TestClass();
 	
