@@ -33,7 +33,8 @@ script:
     - ./configure --with-php-config=`which php-config`
     - make clean && cat Makefile && make && make install
     - echo "extension=phpgo.so" > `php --ini | grep "Scan for additional" | awk '{print $7 "/phpgo.ini"}'`
-    - export TEST_PHP_EXECUTABLE=./test_php && php run-tests.php tests
+    - export TEST_PHP_EXECUTABLE=./test_php 
+    - php run-tests.php tests | grep failed | awk '{print $3}'
 
 after_success:
     - 
