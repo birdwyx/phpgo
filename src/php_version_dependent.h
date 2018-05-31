@@ -123,8 +123,11 @@
 	#define PZVAL_IS_REF(z)                                    Z_ISREF_P(z) 
 	#define IS_CONSTANT_TYPE_MASK                              (-1)
 
+#ifndef ZEND_VM_STACK_ELEMENTS
+        #define ZEND_VM_STACK_ELEMENTS(stack) \
+	(((zval*)(stack)) + ZEND_VM_STACK_HEADER_SLOTS)
+#endif
 	/*copied from zend_execute.c*/
-	#include "zend_execute.h"
 	zend_always_inline zend_vm_stack zend_vm_stack_new_page(size_t size) {
 		zend_vm_stack page = (zend_vm_stack)emalloc(size);
 
