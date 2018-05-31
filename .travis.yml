@@ -8,7 +8,7 @@ compiler:
 
 php:
     - '5.6'
-    - '7.2'
+    - '7.2.0'
 
 before_install:
     - php --ini
