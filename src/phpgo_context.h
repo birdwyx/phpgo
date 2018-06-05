@@ -29,16 +29,25 @@ do{ \
 	void*  data = nullptr; \
 	phpgo_zend_hash_find(&EG(symbol_table), name, sizeof(name), (void**)&data); \
 	zval*  pz_arr  = PHP5_VS_7(*(zval**)data, (zval*)data); \
-	if(pz_arr) { \
-		if( (http_globals)[offset] ) zval_ptr_dtor( &(http_globals)[offset] );  \
-		PHP5_AND_BELOW( (http_globals)[offset] = pz_arr; ); \
-		PHP7_AND_ABOVE( ZVAL_COPY_VALUE( &(http_globals)[offset], pz_arr) ); \
-		Z_ADDREF_P(pz_arr); \
-	}else{ \
-		if( (http_globals)[offset] ) zval_ptr_dtor( &(http_globals)[offset] ); \
-		PHP5_AND_BELOW( (http_globals)[offset] = nullptr );\
-		PHP7_AND_ABOVE( ZVAL_NULL( &(http_globals)[offset] ) ); \
-	} \
+\
+	PHP5_AND_BELOW( \
+		if((http_globals)[offset]) zval_ptr_dtor( &(http_globals)[offset] ); \
+		if(pz_arr) { \
+			(http_globals)[offset] = pz_arr; \
+			Z_ADDREF_P(pz_arr); \
+		}else{ \
+			(http_globals)[offset] = nullptr;  \
+		} \
+	) \
+	PHP7_AND_ABOVE( \
+		zval_ptr_dtor( &(http_globals)[offset] ); \
+		if(pz_arr) { \
+			ZVAL_COPY_VALUE( &(http_globals)[offset], pz_arr); \
+			Z_ADDREF_P(pz_arr); \
+		}else{ \
+			ZVAL_NULL( &(http_globals)[offset] ); \
+		} \
+	) \
 }while(0)
 
 #define GET_HTTP_REQUEST_GLOBAL(http_request_global) \
@@ -46,16 +55,25 @@ do{ \
 	void* data = nullptr; \
 	phpgo_zend_hash_find(&EG(symbol_table), "_REQUEST", sizeof("_REQUEST"), (void**)&data); \
 	zval* pz_arr  = PHP5_VS_7(*(zval**)data, (zval*)data); \
-	if(pz_arr){ \
+\
+	PHP5_AND_BELOW( \
 		if(http_request_global) zval_ptr_dtor( &(http_request_global) ); \
-		PHP5_AND_BELOW( (http_request_global) = pz_arr ); \
-		PHP7_AND_ABOVE( ZVAL_COPY_VALUE( &(http_request_global), pz_arr) ); \
-		Z_ADDREF_P(pz_arr); \
-	}else{ \
-		if(http_request_global) zval_ptr_dtor( &(http_request_global) ); \
-		PHP5_AND_BELOW( (http_request_global) = nullptr; ); \
-		PHP7_AND_ABOVE( ZVAL_NULL( &(http_request_global) ) ); \
-	} \
+		if(pz_arr){ \
+			(http_request_global) = pz_arr; \
+			Z_ADDREF_P(pz_arr); \
+		}else{ \
+			(http_request_global) = nullptr; \
+		} \
+	) \
+	PHP7_AND_ABOVE( \
+		zval_ptr_dtor( &(http_request_global) ); \
+		if(pz_arr){ \
+			ZVAL_COPY_VALUE( &(http_request_global), pz_arr ); \
+			Z_ADDREF_P(pz_arr); \
+		}else{ \
+			ZVAL_NULL( &(http_request_global) ); \
+		} \
+	) \
 }while(0)
 
 #define SET_HTTP_GLOBAL(name, http_globals, offset) \
@@ -125,11 +143,13 @@ do{ \
 #define DELREF_HTTP_GLOBALS(http_globals, http_request_global) \
 do{ \
 	for(int i=0; i<NUM_TRACK_VARS; i++){ \
-		PHP5_AND_BELOW( if((http_globals)[i]) ) \
-		zval_ptr_dtor( &(http_globals)[i] ); \
+		PHP5_AND_BELOW( \
+		if((http_globals)[i]) )\
+			zval_ptr_dtor( &(http_globals)[i] ); \
 	} \
-	PHP5_AND_BELOW( if(http_request_global) ) \
-	zval_ptr_dtor( &(http_request_global) ); \
+	PHP5_AND_BELOW( \
+	if(http_request_global) ) \
+		zval_ptr_dtor( &(http_request_global) ); \
 }while(0)
 
 #define REPLACE_PG_HTTP_GLOBALS_WITH(__http_globals) \
