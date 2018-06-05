@@ -20,6 +20,10 @@ phpgo can be used under both CLI mode and fast-cgi (php-fpm) mode
 
 phpgo supports php5.5 to 7.2 on linux as of today
 
+# 0. Reference Manuals
+### [Phpgo中文参考手册](https://github.com/birdwyx/phpgo/REFERENCE_CN.md) 
+### [Phpgo Reference Manual](https://github.com/birdwyx/phpgo/REFERENCE_EN.md)
+
 # 1. Getting started
 ## 1.1. Install libgo
 The phpgo relies on the the libgo library (thanks libgo!) to provide the underlying coroutine capability, which includes:
@@ -208,7 +212,4 @@ Then, you'll need to add -DENABLE_BOOST_CONTEXT=ON option to the "cmake" command
 ```
 note: if you see compiler errors during the "make" step, make sure you've done the "rm -rf * " under the build directory
 
-# 4. More...
-## [Phpgo中文参考手册](https://github.com/birdwyx/phpgo/REFERENCE_CN.md) 
-## [Phpgo Reference Manual](https://github.com/birdwyx/phpgo/REFERENCE_EN.md)
 
