@@ -161,7 +161,8 @@ function getUserDetailInfo(){
     
     go(function(){
         $curl = new Curl();
-        $user_browsing_history = $curl->get("http://browsing.history.micro.service/path_to_the_browsing_history_query_api");
+        $user_browsing_history =
+            $curl->get("http://browsing.history.micro.service/path_to_the_browsing_history_query_api");
     }, [&$user_browsing_history]);
     
     Scheduler::join();
