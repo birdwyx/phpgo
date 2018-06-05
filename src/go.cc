@@ -337,8 +337,11 @@ do{ \
 		
 		//set the vm stack to the dedicate stack
 		EG_VM_STACK = go_routine_vm_stack;
-		EG(vm_stack_top) = EG(vm_stack)->top;
-		EG(vm_stack_end) = EG(vm_stack)->end;
+		PHP7_AND_ABOVE(
+			EG(vm_stack_top) = EG(vm_stack)->top;
+			EG(vm_stack_end) = EG(vm_stack)->end;
+		);
+
 
 		FUNC_NAME_TYPE func_name         = NULL; 
 		char *error                      = NULL;
