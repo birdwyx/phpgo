@@ -95,8 +95,91 @@ Have fun!
 
 # 2. Using phpgo under fast-cgi mode
 
-phpgo can be used under fast-cgi (php-fpm) mode, 
-to be updated...
+phpgo can be used under fast-cgi (php-fpm) mode,  following are the steps:
+
+##### Make libgo preloaded
+You need to modify your php-fpm service management script (/etc/init.d/php-fpm), add the following line to the /etc/init.d/php-fpm at the very begining of the "start)" section:
+```
+export LD_PRELOAD=liblibgo.so
+```
+after your modification, the file should look like the following:
+```
+/etc/init.d/php-fpm:
+...
+case "$1" in
+    start)
+        echo -n "Starting php-fpm - with libgo preloaded"
+        export LD_PRELOAD=liblibgo.so
+        $php_fpm_BIN --daemonize $php_opts
+        if [ "$?" != 0 ] ; then
+            echo " failed"
+            exit 1
+        fi
+...
+```
+then issue a "service php-fpm reload" to make the modification take effect
+```
+#service php-fpm reload
+```
+The reason to do that is for you to obtain the capability that allows the swithing of execution to another go routine while a go routine is I/O blocked, the LD_PRELOAD=liblibgo.so does the trick. For more information, see the dedicate section below that describe the details of what libgo has done for this capability, why the LD_PRELOAD is needed and how it functions.
+
+### Setup your go scheduler
+A typical way to setup the go scheduler is to add the Scheduler::join() into the index.php
+```
+index.php:
+use \go\Scheduler
+...
+your existing code which typically boots up a framework(e.g, laravel) 
+who in turns runs your web service
+...
+
+Scheduler::join(); // the last line
+```
+
+### Feel free to use the phpgo capability in your web service code
+The places that you most likely to use the phpgo functions/methods are the Models / Controllers.
+The following code demonstrates a uses case where an API gateway consolidate a user's basic information, order placed, and browsing history and send back to the web broswer:
+```
+use \go\Scheduler;
+...
+function getUserDetailInfo(){
+    $userid = $_GET['userid']; 
+    $user_details = [];
+    $user_orders = [];
+    $user_browsing_history = [];
+    
+    go(function(){
+        $redis = new Redis(...);
+        $redis->connect(...);
+        $user_details = $redis->get( "user_details_of_" . $userid );
+    }, [&$user_details]);
+    
+    go(function(){
+        $pdo = new PDO(...);
+        $user_orders = $pdo->query("select * from tb_order where userid = $userid");
+    }, [&$user_orders]);
+    
+    go(function(){
+        $curl = new Curl();
+        $user_browsing_history = $curl->get("http://browsing.history.micro.service/path_to_the_browsing_history_query_api");
+    }, [&$user_browsing_history]);
+    
+    Scheduler::join();
+    
+    $result = array(
+        'user_details' = > $user_details,
+        'user_orders' => $user_orders,
+        'user_browsing_history' => $user_browsing_history,
+    );
+    
+    echo json_encode($result);
+}
+...
+```
+The code above creates 3 go routines, which run in parallel getting the user basic information, order information and browsing history from redis, databases, and a microservice running http interface; the Scheduler::join() schedules and wait all the 3 go routines to finish running; then the code send back the consolidated result to the broswer
+
+As we all know, in the typical php script the above 3 operations have to be exectued in sequence, 
+
 
 
 # 3. Go Live
