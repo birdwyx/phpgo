@@ -229,20 +229,6 @@ bool phpgo_go(
 		} while(0)
 	#define VM_STACK_NUM_ARGS() ( Z_LVAL(*(EG_VM_STACK->top - 1)) )
 #endif
-
-#define MAKE_TEMP_HTTP_GLOBALS(http_globals, http_request_global) \
-do{ \
-	for(int i=0; i<NUM_TRACK_VARS; i++){ \
-		PHP5_VS_7( \
-			array_init(  (http_globals)[i] ), \
-			array_init( &(http_globals)[i] )  \
-		); \
-	} \
-	PHP5_VS_7( \
-		array_init(   http_request_global  ), \
-		array_init( &(http_request_global) )  \
-	); \
-}while(0)
 	
 	//allocate a new stack for the go routine
 	zend_vm_stack go_routine_vm_stack = zend_vm_stack_new_page( argc > GR_VM_STACK_PAGE_SIZE ? argc : GR_VM_STACK_PAGE_SIZE );
@@ -271,7 +257,7 @@ do{ \
 	/* setup the http globals for child to inherit*/
 	PHP5_AND_BELOW(	zval* parent_http_globals[NUM_TRACK_VARS];	zval* parent_http_request_global; );
 	PHP7_AND_ABOVE( zval  parent_http_globals[NUM_TRACK_VARS];	zval  parent_http_request_global; );
-	MAKE_TEMP_HTTP_GLOBALS(parent_http_globals, parent_http_request_global);
+	MAKE_HTTP_GLOBALS(parent_http_globals, parent_http_request_global);
 	
 	if(go_routine_options & GoRoutineOptions::gro_isolate_http_globals) {
 		GET_HTTP_GLOBALS(parent_http_globals, parent_http_request_global);
@@ -440,7 +426,7 @@ do{ \
 			}
 		}
 		
-		PHPGO_MAKE_STD_ZVAL(return_value);
+		PHP7_AND_ABOVE( PHPGO_MAKE_STD_ZVAL(return_value) ); 
 		if( call_user_function_ex(
 			EG(function_table), 
 			NULL, 

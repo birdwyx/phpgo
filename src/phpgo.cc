@@ -671,7 +671,9 @@ PHP_MINFO_FUNCTION(phpgo)
 	
 	PHP7_AND_ABOVE( defer{ PHPGO_FREE_PZVAL(z); }; );
 	
-	phpgo_zval_add_ref(&z);
+	//todo: php7: test push ref-counted variable to chan and check mem-leak 
+	//since add_ref to non-ref-counted has no effect but to ref-counted does have
+	//phpgo_zval_add_ref(&z);
 	RETURN_ZVAL(z, 1, 1);
  }
  /* }}} */

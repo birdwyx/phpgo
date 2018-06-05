@@ -209,26 +209,24 @@ zval* GoChan::Pop(void* handle){
 		}
 	}
 	
+	/*allocate a new zval and copy the cd->z to it
+	since the cd->z will be release by the ~ChannelData()*/
+	PHPGO_ALLOC_ZVAL(z);
+	*z = *(cd->z);
+	PHPGO_INIT_PZVAL(z);  //init reference
+		
 	if(cd->copy){
 		//this zval was copied from the sending thread's local storage 
 		//to the persistent memeory, now we copy it from persistent to
 		//our thread local
-		
-		PHPGO_ALLOC_ZVAL(z);
-		*z = *(cd->z);
-		PHPGO_INIT_PZVAL(z);  //init reference
 		
 		//copy zval from persistent to thread local
 		//this is a complete copy, there won't be any pointer still hangs into 
 		//the share memory
 		zval_persistent_to_local_copy_ctor(z);
 	}else{
-		//z = cd->z;
-		//phpgo_zval_add_ref(&z);
-		PHPGO_ALLOC_ZVAL(z);
-		*z = *(cd->z);
-		PHPGO_INIT_PZVAL(z);  //init reference
-		
+		//do a copy ctor that copies everything from cd->z 
+		//as ~ChannelData() will free the cd->z and everything it points to
 		zval_copy_ctor(z);
 	}
 	
@@ -283,28 +281,24 @@ zval* GoChan::TryPop(void* handle){
 			return nullptr;
 	}
 	
+	/*allocate a new zval and copy the cd->z to it
+	since the cd->z will be release by the ~ChannelData()*/
+	PHPGO_ALLOC_ZVAL(z);
+	*z = *(cd->z);
+	PHPGO_INIT_PZVAL(z);  //init reference
+		
 	if(cd->copy){
 		//this zval was copied from the sending thread's local storage 
 		//to the persistent memeory, now we copy it from persistent to
 		//our thread local
 		
-		PHPGO_ALLOC_ZVAL(z);
-		*z = *(cd->z);
-		PHPGO_INIT_PZVAL(z);  //init reference
-		
 		//copy zval from persistent to thread local
 		//this is a complete copy, there won't be any pointer still hangs into 
 		//the share memory
 		zval_persistent_to_local_copy_ctor(z);
-		
 	}else{
-		//z = cd->z;
-		//phpgo_zval_add_ref(&z);
-		
-		PHPGO_ALLOC_ZVAL(z);
-		*z = *(cd->z);
-		PHPGO_INIT_PZVAL(z);  //init reference
-		
+		//do a copy ctor that copies everything from cd->z 
+		//as ~ChannelData() will free the cd->z and everything it points to
 		zval_copy_ctor(z);
 	}
 	

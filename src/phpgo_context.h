@@ -30,12 +30,12 @@ do{ \
 	phpgo_zend_hash_find(&EG(symbol_table), name, sizeof(name), (void**)&data); \
 	zval*  pz_arr  = PHP5_VS_7(*(zval**)data, (zval*)data); \
 	if(pz_arr) { \
-		zval_ptr_dtor( &(http_globals)[offset] );  \
+		if( (http_globals)[offset] ) zval_ptr_dtor( &(http_globals)[offset] );  \
 		PHP5_AND_BELOW( (http_globals)[offset] = pz_arr; ); \
 		PHP7_AND_ABOVE( ZVAL_COPY_VALUE( &(http_globals)[offset], pz_arr) ); \
 		Z_ADDREF_P(pz_arr); \
 	}else{ \
-		zval_ptr_dtor( &(http_globals)[offset] ); \
+		if( (http_globals)[offset] ) zval_ptr_dtor( &(http_globals)[offset] ); \
 		PHP5_AND_BELOW( (http_globals)[offset] = nullptr );\
 		PHP7_AND_ABOVE( ZVAL_NULL( &(http_globals)[offset] ) ); \
 	} \
@@ -47,13 +47,13 @@ do{ \
 	phpgo_zend_hash_find(&EG(symbol_table), "_REQUEST", sizeof("_REQUEST"), (void**)&data); \
 	zval* pz_arr  = PHP5_VS_7(*(zval**)data, (zval*)data); \
 	if(pz_arr){ \
-		zval_ptr_dtor( &(http_request_global) ); \
-		PHP5_AND_BELOW( http_request_global = pz_arr ); \
+		if(http_request_global) zval_ptr_dtor( &(http_request_global) ); \
+		PHP5_AND_BELOW( (http_request_global) = pz_arr ); \
 		PHP7_AND_ABOVE( ZVAL_COPY_VALUE( &(http_request_global), pz_arr) ); \
 		Z_ADDREF_P(pz_arr); \
 	}else{ \
-		zval_ptr_dtor( &(http_request_global) ); \
-		PHP5_AND_BELOW( http_request_global = nullptr; ); \
+		if(http_request_global) zval_ptr_dtor( &(http_request_global) ); \
+		PHP5_AND_BELOW( (http_request_global) = nullptr; ); \
 		PHP7_AND_ABOVE( ZVAL_NULL( &(http_request_global) ) ); \
 	} \
 }while(0)
@@ -61,12 +61,12 @@ do{ \
 #define SET_HTTP_GLOBAL(name, http_globals, offset) \
 do{ \
 	PHP5_AND_BELOW( \
-		if( http_globals[offset] ) {\
+		if( (http_globals)[offset] ) {\
 			phpgo_zend_hash_update( \
 				&EG(symbol_table), name, sizeof(name), \
 				&(http_globals)[offset], sizeof(zval *), NULL \
 			); \
-			Z_ADDREF_P( http_globals[offset] ); \
+			Z_ADDREF_P( (http_globals)[offset] ); \
 		} \
 	) \
 	PHP7_AND_ABOVE(\
@@ -125,8 +125,10 @@ do{ \
 #define DELREF_HTTP_GLOBALS(http_globals, http_request_global) \
 do{ \
 	for(int i=0; i<NUM_TRACK_VARS; i++){ \
+		PHP5_AND_BELOW( if((http_globals)[i]) ) \
 		zval_ptr_dtor( &(http_globals)[i] ); \
 	} \
+	PHP5_AND_BELOW( if(http_request_global) ) \
 	zval_ptr_dtor( &(http_request_global) ); \
 }while(0)
 
@@ -135,13 +137,29 @@ do{ \
 	for(int i=0; i<NUM_TRACK_VARS; i++){ \
 		zval_ptr_dtor( &PG(http_globals)[i] ); \
 	} \
-	memcpy( PG(http_globals), __http_globals, sizeof(PG(http_globals)) ); \
+	memcpy( PG(http_globals), (__http_globals), sizeof(PG(http_globals)) ); \
 	for(int i=0; i<NUM_TRACK_VARS; i++){ \
 		PHP5_VS_7( \
-			Z_ADDREF_P( __http_globals[i] ), \
+			Z_ADDREF_P( (__http_globals)[i] ), \
 			Z_ADDREF_P( &(__http_globals)[i] ) \
 		); \
 	} \
+}while(0)
+	
+#define MAKE_HTTP_GLOBALS(http_globals, http_request_global) \
+do{ \
+	for(int i=0; i<NUM_TRACK_VARS; i++){ \
+		PHP5_AND_BELOW(	\
+			MAKE_STD_ZVAL( (http_globals)[i] ); \
+			array_init( (http_globals)[i] ); \
+		); \
+		PHP7_AND_ABOVE( array_init( &(http_globals)[i] ) ); \
+	} \
+	PHP5_AND_BELOW( \
+		MAKE_STD_ZVAL( http_request_global ); \
+		array_init( http_request_global ); \
+	); \
+	PHP7_AND_ABOVE( array_init( &(http_request_global) ) ); \
 }while(0)
 
 /*null-out our concerned globals to avoid potential problem*/
@@ -205,7 +223,7 @@ struct PhpgoBaseContext{
 #endif
 	/**/
 	PhpgoBaseContext(){
-		memset(this, sizeof(*this), 0);
+		bzero(this, sizeof(*this));
 		
 		PHP7_AND_ABOVE(
 			for(int i=0; i< NUM_TRACK_VARS; i++)

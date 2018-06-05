@@ -53,7 +53,7 @@ static zend_always_inline void _zval_persistent_dtor(zval *zvalue ZEND_FILE_LINE
 static zend_always_inline void i_zval_persistent_ptr_dtor(zval *zval_ptr ZEND_FILE_LINE_DC)
 {
 	if (!Z_DELREF_P(zval_ptr)) {
-		_zval_persistent_dtor_func(zval_ptr);
+		_zval_persistent_dtor_func(zval_ptr ZEND_FILE_LINE_RELAY_CC);
 		pefree_rel(zval_ptr, 1);
 	} else {
 		//TSRMLS_FETCH();

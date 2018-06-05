@@ -45,13 +45,13 @@ bool  phpgo_select(GO_SELECT_CASE* case_array, long case_count TSRMLS_DC){
 					goto exit_while;
 				}
 			}else if(case_array[i].op == GO_CASE_OP_WRITE){
-				auto rc = GoChan::TryPush(chinfo, case_array[i].value TSRMLS_CC);				
+				auto rc = GoChan::TryPush(chinfo, case_array[i].value TSRMLS_CC);
 				if( rc==GoChan::RCode::success ){
-					phpgo_zval_add_ref(&case_array[i].value);
+					//todo: php7 need to test the write of non-scalar value (array/string etc)
+					//phpgo_zval_add_ref(&case_array[i].value);
 					selected_case = &case_array[i];
 					goto exit_while;
 				}
-				
 			}else{
 				//error
 			}
@@ -67,9 +67,12 @@ bool  phpgo_select(GO_SELECT_CASE* case_array, long case_count TSRMLS_DC){
 	}while (i != start );
 	
 exit_while:
-	//todo: may need to dtor the return_value for php5...
-	PHP5_AND_BELOW( zval*   return_value = nullptr; );
-	PHP7_AND_ABOVE( zval    return_value;           );
+	PHP5_AND_BELOW(
+		zval*   return_value = nullptr; 
+		defer{ if(return_value) zval_ptr_dtor(&return_value); };
+	);
+	PHP7_AND_ABOVE( zval return_value; );
+	
 	if( selected_case ){
 		PHPGO_ARG_TYPE* args         = nullptr;
 		auto            argc         = 0;
