@@ -97,7 +97,7 @@ Have fun!
 
 phpgo can be used under fast-cgi (php-fpm) mode,  following are the steps:
 
-##### Make libgo preloaded
+### Make libgo preloaded
 You need to modify your php-fpm service management script (/etc/init.d/php-fpm), add the following line to the /etc/init.d/php-fpm at the very begining of the "start)" section:
 ```
 export LD_PRELOAD=liblibgo.so
@@ -121,7 +121,7 @@ then issue a "service php-fpm reload" to make the modification take effect
 ```
 #service php-fpm reload
 ```
-The reason to do that is for you to obtain the capability that allows the swithing of execution to another go routine while a go routine is I/O blocked, the LD_PRELOAD=liblibgo.so does the trick. For more information, see the dedicate section below that describe the details of what libgo has done for this capability, why the LD_PRELOAD is needed and how it functions.
+The reason to do that is for you to obtain the capability that allows the swithing of execution to another go routine while a go routine is I/O blocked, the LD_PRELOAD=liblibgo.so does the trick. For more information, see the dedicate section below that describes the details of what libgo has done for this capability, why the LD_PRELOAD is needed and how it functions.
 
 ### Setup your go scheduler
 A typical way to setup the go scheduler is to add the Scheduler::join() into the index.php
@@ -148,19 +148,19 @@ function getUserDetailInfo(){
     $user_orders = [];
     $user_browsing_history = [];
     
-    go(function(){
-        $redis = new Redis(...);
+    go(function(&$user_details){
+        $redis = new Redis();
         $redis->connect(...);
         $user_details = $redis->get( "user_details_of_" . $userid );
     }, [&$user_details]);
     
-    go(function(){
+    go(function(&$user_orders){
         $pdo = new PDO(...);
         $user_orders = $pdo->query("select * from tb_order where userid = $userid");
     }, [&$user_orders]);
     
-    go(function(){
-        $curl = new Curl();
+    go(function(&$user_browsing_history){
+        $curl = new Curl(...);
         $user_browsing_history =
             $curl->get("http://browsing.history.micro.service/path_to_the_browsing_history_query_api");
     }, [&$user_browsing_history]);
@@ -179,9 +179,7 @@ function getUserDetailInfo(){
 ```
 The code above creates 3 go routines, which run in parallel getting the user basic information, order information and browsing history from redis, databases, and a microservice running http interface; the Scheduler::join() schedules and wait all the 3 go routines to finish running; then the code send back the consolidated result to the broswer
 
-As we all know, in the typical php script the above 3 operations have to be exectued in sequence, 
-
-
+As we all know, due to the synchronized nature of php, in a php script all operations have to be exectued in sequence, in an API gateway that has a lot of interactions with other conter-parts, the total amount of execution time of a script can easily become unacceptable. By using phpgo, the amount of total execution time can reduce to the time of a single operation(given the operations are independent and can be executed in parallel)
 
 # 3. Go Live
 
