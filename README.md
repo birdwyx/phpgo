@@ -93,10 +93,7 @@ Hello World!
 
 Have fun!
 
-# 2. LD_PRELOAD
-to be updated...
-
-# 3. Using phpgo under fast-cgi mode
+## 1.4. Using phpgo under fast-cgi mode
 
 phpgo can be used under fast-cgi (php-fpm) mode,  following are the steps:
 
@@ -124,7 +121,7 @@ then issue a "service php-fpm reload" to make the modification take effect
 ```
 #service php-fpm reload
 ```
-The reason to do that is for you to obtain the capability that allows the swithing of execution to another go routine while a go routine is I/O blocked, the LD_PRELOAD=liblibgo.so does the trick. For more information, see the dedicated section above that describes the details of what libgo has done for this capability, why the LD_PRELOAD is needed and how it functions.
+The reason to do that is for you to obtain the capability that allows the swithing of execution to another go routine while a go routine is I/O blocked, the LD_PRELOAD=liblibgo.so does the trick. For more information, see the dedicated section below that describes the details of what libgo has done for this capability, why the LD_PRELOAD is needed and how it functions.
 
 ### Setup your go scheduler
 A typical way to setup the go scheduler is to add the Scheduler::join() into the index.php
@@ -184,7 +181,10 @@ The code above creates 3 go routines, which run in parallel getting the user bas
 
 As we all know, due to the synchronized nature of php, in a php script all operations have to be exectued in sequence, in an API gateway that has a lot of interactions with other conter-parts, the total amount of execution time of a script can easily become unacceptable. By using phpgo, the amount of total execution time can reduce to the time of a single operation(given the operations are independent and can be executed in parallel)
 
-# 4. Go Live
+# 2. LD_PRELOAD
+to be updated...
+
+# 3. Go Live
 
 libgo supports using boost context for context switching (default context switching mechanism is u_context) which provides a much better coroutine switch performance (5+ times). 
 
@@ -208,7 +208,7 @@ Then, you'll need to add -DENABLE_BOOST_CONTEXT=ON option to the "cmake" command
 ```
 note: if you see compiler errors during the "make" step, make sure you've done the "rm -rf * " under the build directory
 
-# 5. More...
+# 4. More...
 ## [Phpgo中文参考手册](https://github.com/birdwyx/phpgo/REFERENCE_CN.md) 
 ## [Phpgo Reference Manual](https://github.com/birdwyx/phpgo/REFERENCE_EN.md)
 
