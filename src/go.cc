@@ -48,6 +48,8 @@ inline  A func(){
 }
 /*<---------*/
 
+#define PARAMETER_ARRAY_POSITION (1)
+
 ZEND_EXTERN_MODULE_GLOBALS(phpgo)
 
 // the g_Scheduler is made thread local, so the task_listener must be thread local
@@ -163,10 +165,11 @@ void dump_zval(zval* zv){
 #endif
 
 /*
+* explode the parameter array (args[1]) and append them to the args[]
 */
 bool php_go_explode_array_arg(PHPGO_ARG_TYPE* args, size_t* exploded_size){
-	zval* arr    = PHPGO_ARG_TO_PZVAL( args[1] );
-	size_t index = 1;
+	zval* arr    = PHPGO_ARG_TO_PZVAL( args[PARAMETER_ARRAY_POSITION] );
+	size_t index = PARAMETER_ARRAY_POSITION + 1;
 	
 	HashTable* ht        = Z_ARRVAL_P(arr); 
 	HashPosition pointer = PHPGO_INVALID_HASH_POSITION; //hash position is pointer prior to PHP7 and is a uint32_t after
@@ -225,7 +228,22 @@ bool phpgo_go(
 			*((stack)->top++) = (tmp); \
 		} while(0)
 	#define VM_STACK_NUM_ARGS() ( Z_LVAL(*(EG_VM_STACK->top - 1)) )
-#endif	
+#endif
+
+#define MAKE_TEMP_HTTP_GLOBALS(http_globals, http_request_global) \
+do{ \
+	for(int i=0; i<NUM_TRACK_VARS; i++){ \
+		PHP5_VS_7( \
+			array_init(  (http_globals)[i] ), \
+			array_init( &(http_globals)[i] )  \
+		); \
+	} \
+	PHP5_VS_7( \
+		array_init(   http_request_global  ), \
+		array_init( &(http_request_global) )  \
+	); \
+}while(0)
+	
 	//allocate a new stack for the go routine
 	zend_vm_stack go_routine_vm_stack = zend_vm_stack_new_page( argc > GR_VM_STACK_PAGE_SIZE ? argc : GR_VM_STACK_PAGE_SIZE );
 	if(!go_routine_vm_stack) return false;
@@ -243,44 +261,47 @@ bool phpgo_go(
 	VM_STACK_PUSH(go_routine_vm_stack, (unsigned long)argc);
 #else
 	VM_STACK_PUSH_LONG(go_routine_vm_stack, 0xdeaddeaddeaddead);
-	//printf("go: arg addr: \n");
 	for(zend_uint i = 0; i < argc; i++ ){
 		VM_STACK_PUSH(go_routine_vm_stack, &args[i]);
 		zval_add_ref(&args[i]);
-		//printf("%p,", &args[i]);
 	}
-	//printf("\n");
 	VM_STACK_PUSH_LONG(go_routine_vm_stack, (unsigned long)argc);
 #endif
-
-	/*Make a temporary context and save the current running environment into it
-	and then pass this context to the new creating go routine, so that the http
-	globals can be inherited */
-	PhpgoContext* parent_ctx = new PhpgoContext(GoRoutineOptions::gro_default TSRMLS_CC);
-	if(!parent_ctx){
-		efree(go_routine_vm_stack);
-		return false;
-	}
-	bool include_http_globals = go_routine_options & GoRoutineOptions::gro_isolate_http_globals;
-	parent_ctx->SwapOut(include_http_globals);
 	
+	/* setup the http globals for child to inherit*/
+	PHP5_AND_BELOW(	zval* parent_http_globals[NUM_TRACK_VARS];	zval* parent_http_request_global; );
+	PHP7_AND_ABOVE( zval  parent_http_globals[NUM_TRACK_VARS];	zval  parent_http_request_global; );
+	MAKE_TEMP_HTTP_GLOBALS(parent_http_globals, parent_http_request_global);
+	
+	if(go_routine_options & GoRoutineOptions::gro_isolate_http_globals) {
+		GET_HTTP_GLOBALS(parent_http_globals, parent_http_request_global);
+	}
+	/**/
+	
+	/*setup stack size*/
 	if( !stack_size ) {
 		stack_size = GR_DEFAULT_STACK_SIZE;  /*default to 1M*/
 	}else if( stack_size < GR_MIN_STACK_SIZE ){
 		stack_size = GR_MIN_STACK_SIZE;      /*at least 32K stack, if size provided*/
 	}
+	/**/
 		
-	go_stack(stack_size) [go_routine_vm_stack, go_routine_options, parent_ctx TSRMLS_CC] ()mutable {
+	go_stack(stack_size) [
+		go_routine_vm_stack,
+		go_routine_options,
+		parent_http_globals,
+		parent_http_request_global
+		TSRMLS_CC
+	] ()mutable {
 		defer{
-			delete parent_ctx;
+			DELREF_HTTP_GLOBALS(parent_http_globals, parent_http_request_global);
+			
 			if(!EG_VM_STACK){
 				//zend_vm_stack_destroy requires EG_VM_STACK be set
 				EG_VM_STACK = go_routine_vm_stack; 
 			}
 			zend_vm_stack_destroy(TSRMLS_C);
 		};
-		
-		//printf("1\n");
 
 		// set the tsrm_ls to my prarent, i.e., inherit all globals from my parent
 		PhpgoContext* ctx = new PhpgoContext(go_routine_options TSRMLS_CC); 
@@ -307,14 +328,17 @@ bool phpgo_go(
 		bool include_http_globals = ctx->go_routine_options & GoRoutineOptions::gro_isolate_http_globals;
 		PhpgoSchedulerContext* sched_ctx = &scheduler_ctx;
 		sched_ctx->SwapOut(include_http_globals);
-
-		// load the running environment from the parent_ctx (inherited from parent),
-		// and then clear the fileds that we don't want:
-		parent_ctx->SwapIn(include_http_globals);  
+		
+		// load the http globals: inherited from parent,
+		if(include_http_globals) {
+			SET_HTTP_GLOBALS(parent_http_globals, parent_http_request_global);
+		}
 		PHPGO_INITIALIZE_RUNNING_ENVIRONMENT();
 		
 		//set the vm stack to the dedicate stack
 		EG_VM_STACK = go_routine_vm_stack;
+		EG(vm_stack_top) = EG(vm_stack)->top;
+		EG(vm_stack_end) = EG(vm_stack)->end;
 
 		FUNC_NAME_TYPE func_name         = NULL; 
 		char *error                      = NULL;
@@ -335,6 +359,11 @@ bool phpgo_go(
 				//after complete using the callback, decrease the reference to them
 				for(zend_uint i = 0; i < argc; i++ ){
 					phpgo_zval_ptr_dtor(args[i]);
+				}
+#else
+				for(zend_uint i = 0; i < argc; i++ ){
+					zval* z = &args[i];
+					phpgo_zval_ptr_dtor(&z);  //phpgo_zval_ptr_dtor requires zval**
 				}
 #endif
 				efree(args);
@@ -358,7 +387,7 @@ bool phpgo_go(
 			args[i] = *z_arg++;
 		}
 #endif
-		
+		auto param_count = 0;
 		if(argc > 1){
 			// args is now [$callable, $parameter_arr]
 			// explode the $parameter_arr to $arg1,$arg2...$argn
@@ -366,7 +395,7 @@ bool phpgo_go(
 			// args will look like [$callable, $arg1,$arg2,...,$argn] after this operation
 			size_t exploaded_size = 0;
 			if( !php_go_explode_array_arg(args, &exploaded_size) ) return;
-			argc += exploaded_size - 1; 
+			param_count = exploaded_size; 
 		}
 
 		fci_cache = (zend_fcall_info_cache*)emalloc(sizeof(zend_fcall_info_cache));
@@ -389,14 +418,20 @@ bool phpgo_go(
         }
 		
 		// if any arg of the callback should be sent by ref, if yes, set the arg to pass-by-ref
-		for (auto i = 1; i < argc; i++) {
-			if (ARG_SHOULD_BE_SENT_BY_REF(fci_cache->function_handler, i)) {
+		for (auto i = PARAMETER_ARRAY_POSITION + 1; 
+		          i < param_count + PARAMETER_ARRAY_POSITION + 1; 
+				  i++) {
+			if (ARG_SHOULD_BE_SENT_BY_REF(fci_cache->function_handler, i-PARAMETER_ARRAY_POSITION-1)) {
 #if PHP_MAJOR_VERSION < 7
 				Z_SET_ISREF_PP(args[i]);
 #else
 				if (UNEXPECTED(!Z_ISREF_P(&args[i]))) {
 					ZVAL_NEW_REF(&args[i], &args[i]);
-					zend_error(E_WARNING, "phpgo: go: parameter %d to go routine expected to be a reference, value given", i);
+					defer{
+						zval* z = &args[i];
+						phpgo_zval_ptr_dtor(&z);
+					};
+					zend_error(E_WARNING, "phpgo: go: parameter %d to go routine expected to be a reference, value given", i-PARAMETER_ARRAY_POSITION-1);
 				}
 #endif
 			}
@@ -408,8 +443,8 @@ bool phpgo_go(
 			NULL, 
 			callback,                                  // the callback callable
 			PHP5_VS_7(&return_value, return_value),    // return value: php5: zval**, php7: zval*
-			argc - 1,                                  // the parameter number required by the callback
-			argc > 1 ? args + 1 : NULL,                // the parameter list of the callback
+			param_count,                               // the parameter number required by the callback
+			param_count ? args + PARAMETER_ARRAY_POSITION + 1 : NULL,  // the parameter list of the callback
 			1, 
 			NULL TSRMLS_CC
 		) != SUCCESS) {

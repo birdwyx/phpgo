@@ -30,12 +30,14 @@ do{ \
 	phpgo_zend_hash_find(&EG(symbol_table), name, sizeof(name), (void**)&data); \
 	zval*  pz_arr  = PHP5_VS_7(*(zval**)data, (zval*)data); \
 	if(pz_arr) { \
-		PHP5_AND_BELOW( (http_globals)[offset] = pz_arr ); \
+		zval_ptr_dtor( &(http_globals)[offset] );  \
+		PHP5_AND_BELOW( (http_globals)[offset] = pz_arr; ); \
 		PHP7_AND_ABOVE( ZVAL_COPY_VALUE( &(http_globals)[offset], pz_arr) ); \
 		Z_ADDREF_P(pz_arr); \
 	}else{ \
-		PHP5_AND_BELOW( (http_globals)[offset] = nullptr ); \
-		PHP7_AND_ABOVE( ZVAL_NULL(&(http_globals)[offset]) ); \
+		zval_ptr_dtor( &(http_globals)[offset] ); \
+		PHP5_AND_BELOW( (http_globals)[offset] = nullptr );\
+		PHP7_AND_ABOVE( ZVAL_NULL( &(http_globals)[offset] ) ); \
 	} \
 }while(0)
 
@@ -45,12 +47,14 @@ do{ \
 	phpgo_zend_hash_find(&EG(symbol_table), "_REQUEST", sizeof("_REQUEST"), (void**)&data); \
 	zval* pz_arr  = PHP5_VS_7(*(zval**)data, (zval*)data); \
 	if(pz_arr){ \
-		PHP5_AND_BELOW( http_request_global = pz_arr; ); \
-		PHP7_AND_ABOVE( ZVAL_COPY_VALUE(&http_request_global, pz_arr); ); \
+		zval_ptr_dtor( &(http_request_global) ); \
+		PHP5_AND_BELOW( http_request_global = pz_arr ); \
+		PHP7_AND_ABOVE( ZVAL_COPY_VALUE( &(http_request_global), pz_arr) ); \
 		Z_ADDREF_P(pz_arr); \
 	}else{ \
+		zval_ptr_dtor( &(http_request_global) ); \
 		PHP5_AND_BELOW( http_request_global = nullptr; ); \
-		PHP7_AND_ABOVE( ZVAL_NULL(&http_request_global); ); \
+		PHP7_AND_ABOVE( ZVAL_NULL( &(http_request_global) ) ); \
 	} \
 }while(0)
 
@@ -60,8 +64,9 @@ do{ \
 		if( http_globals[offset] ) {\
 			phpgo_zend_hash_update( \
 				&EG(symbol_table), name, sizeof(name), \
-				&(http_globals[offset]), sizeof(zval *), NULL \
+				&(http_globals)[offset], sizeof(zval *), NULL \
 			); \
+			Z_ADDREF_P( http_globals[offset] ); \
 		} \
 	) \
 	PHP7_AND_ABOVE(\
@@ -70,6 +75,7 @@ do{ \
 			&EG(symbol_table), name, sizeof(name), \
 			&tmp, sizeof(zval *), NULL \
 		); \
+		Z_ADDREF_P( &(http_globals)[offset] ); \
 	) \
 }while(0)
 
@@ -79,8 +85,9 @@ do{ \
 		if( http_request_global ) {\
 			phpgo_zend_hash_update( \
 			    &EG(symbol_table), "_REQUEST", sizeof("_REQUEST"),\
-				&http_request_global, sizeof(zval *), NULL \
+				&(http_request_global), sizeof(zval *), NULL \
 			); \
+			Z_ADDREF_P( http_request_global ); \
 		} \
 	) \
 	PHP7_AND_ABOVE(\
@@ -89,13 +96,83 @@ do{ \
 			&EG(symbol_table), "_REQUEST", sizeof("_REQUEST"), \
 			&tmp, sizeof(zval *), NULL \
 		); \
+		Z_ADDREF_P( &(http_request_global) ); \
 	) \
 }while(0)
+	
+#define SET_HTTP_GLOBALS(http_globals, http_request_global) \
+do{ \
+	SET_HTTP_GLOBAL("_GET",    http_globals, TRACK_VARS_GET);  \
+	SET_HTTP_GLOBAL("_POST",   http_globals, TRACK_VARS_POST); \
+	SET_HTTP_GLOBAL("_COOKIE", http_globals, TRACK_VARS_COOKIE); \
+	SET_HTTP_GLOBAL("_SERVER", http_globals, TRACK_VARS_SERVER); \
+	SET_HTTP_GLOBAL("_ENV",    http_globals, TRACK_VARS_ENV); \
+	SET_HTTP_GLOBAL("_FILES",  http_globals, TRACK_VARS_FILES); \
+	SET_HTTP_REQUEST_GLOBAL(   http_request_global ); /*get $_REQUEST*/ \
+}while(0)
+	
+#define GET_HTTP_GLOBALS(http_globals, http_request_global) \
+do{ \
+	GET_HTTP_GLOBAL("_GET",    http_globals, TRACK_VARS_GET);  \
+	GET_HTTP_GLOBAL("_POST",   http_globals, TRACK_VARS_POST);  \
+	GET_HTTP_GLOBAL("_COOKIE", http_globals, TRACK_VARS_COOKIE); \
+	GET_HTTP_GLOBAL("_SERVER", http_globals, TRACK_VARS_SERVER); \
+	GET_HTTP_GLOBAL("_ENV",    http_globals, TRACK_VARS_ENV); \
+	GET_HTTP_GLOBAL("_FILES",  http_globals, TRACK_VARS_FILES); \
+	GET_HTTP_REQUEST_GLOBAL(   http_request_global ); /*get $_REQUEST*/ \
+}while(0)
+	
+#define DELREF_HTTP_GLOBALS(http_globals, http_request_global) \
+do{ \
+	for(int i=0; i<NUM_TRACK_VARS; i++){ \
+		zval_ptr_dtor( &(http_globals)[i] ); \
+	} \
+	zval_ptr_dtor( &(http_request_global) ); \
+}while(0)
+
+#define REPLACE_PG_HTTP_GLOBALS_WITH(__http_globals) \
+do{ \
+	for(int i=0; i<NUM_TRACK_VARS; i++){ \
+		zval_ptr_dtor( &PG(http_globals)[i] ); \
+	} \
+	memcpy( PG(http_globals), __http_globals, sizeof(PG(http_globals)) ); \
+	for(int i=0; i<NUM_TRACK_VARS; i++){ \
+		PHP5_VS_7( \
+			Z_ADDREF_P( __http_globals[i] ), \
+			Z_ADDREF_P( &(__http_globals)[i] ) \
+		); \
+	} \
+}while(0)
+
+/*null-out our concerned globals to avoid potential problem*/
+#if PHP_MAJOR_VERSION < 7
+#define PHPGO_INITIALIZE_RUNNING_ENVIRONMENT()           \
+{                                                                  \
+	EG(current_execute_data )   =  NULL;                           \
+	EG(argument_stack       )   =  NULL;                           \
+	EG(scope                )   =  NULL;                           \
+	EG(This                 )   =  NULL;                           \
+	EG(called_scope         )   =  NULL;                           \
+	EG(active_symbol_table  )   =  NULL;                           \
+	EG(return_value_ptr_ptr )   =  NULL;                           \
+	EG(active_op_array      )   =  NULL;                           \
+	EG(opline_ptr           )   =  NULL;                           \
+	INIT_ZVAL(EG(error_zval));                                     \
+	EG(error_zval_ptr       )   =  NULL;                           \
+	EG(user_error_handler   )   =  NULL;                           \
+}
+#else
+#define PHPGO_INITIALIZE_RUNNING_ENVIRONMENT()           \
+{                                                                  \
+	EG(current_execute_data )   =  NULL;                           \
+	EG(vm_stack             )   =  NULL;                           \
+	EG(vm_stack_top         )   =  NULL;                           \
+	EG(vm_stack_end         )   =  NULL;                           \
+}
+#endif
 
 struct PhpgoBaseContext{
 	uint64_t                   task_id;
-	uint64_t                   go_routine_options;
-	bool                       go_routine_finished;
 
 #if PHP_MAJOR_VERSION < 7
 	/*go routine running environment*/
@@ -127,8 +204,17 @@ struct PhpgoBaseContext{
 	zval                       http_request_global;
 #endif
 	/**/
+	PhpgoBaseContext(){
+		memset(this, sizeof(*this), 0);
+		
+		PHP7_AND_ABOVE(
+			for(int i=0; i< NUM_TRACK_VARS; i++)
+				ZVAL_NULL( &PG_http_globals[i] );
+			ZVAL_NULL( &http_request_global );
+		);
+	}
 	
-public:
+protected:
 	inline void SwapOut(bool include_http_globals){
 #if PHP_MAJOR_VERSION < 7
 		TSRMLS_FIELD;                  
@@ -136,13 +222,7 @@ public:
 #endif
 		
 		if(include_http_globals){
-			GET_HTTP_GLOBAL("_GET",    this->PG_http_globals, TRACK_VARS_GET);  
-			GET_HTTP_GLOBAL("_POST",   this->PG_http_globals, TRACK_VARS_POST);       
-			GET_HTTP_GLOBAL("_COOKIE", this->PG_http_globals, TRACK_VARS_COOKIE);     
-			GET_HTTP_GLOBAL("_SERVER", this->PG_http_globals, TRACK_VARS_SERVER);     
-			GET_HTTP_GLOBAL("_ENV",    this->PG_http_globals, TRACK_VARS_ENV);        
-			GET_HTTP_GLOBAL("_FILES",  this->PG_http_globals, TRACK_VARS_FILES);      
-			GET_HTTP_REQUEST_GLOBAL(   this->http_request_global); /*get $_REQUEST*/
+			GET_HTTP_GLOBALS(this->PG_http_globals, this->http_request_global);
 		}
 
 		/* save the current EG  */    
@@ -164,12 +244,6 @@ public:
         this->EG_vm_stack_top          =  EG(vm_stack_top            );
 		this->EG_vm_stack_end          =  EG(vm_stack_end            );
 #endif
-		
-		// the coroutine ( not the scheduler ) is finished 
-		// free the task local storage (including this context itself)
-		if(this->go_routine_finished && this->task_id) {
-			TaskLocalStorage::FreeSpecifics(this->task_id);
-		}
 	}
 
 	inline void SwapIn(bool include_http_globals){
@@ -198,25 +272,18 @@ public:
 	    EG(vm_stack_end         )	=  this->EG_vm_stack_end        ;
 #endif
 		
-		if(include_http_globals){
-			memcpy( PG(http_globals), this->PG_http_globals, sizeof(PG(http_globals)) ); 	
-
-			SET_HTTP_GLOBAL("_GET",   this->PG_http_globals, TRACK_VARS_GET);            
-			SET_HTTP_GLOBAL("_POST",  this->PG_http_globals, TRACK_VARS_POST);           
-			SET_HTTP_GLOBAL("_COOKIE",this->PG_http_globals, TRACK_VARS_COOKIE);         
-			SET_HTTP_GLOBAL("_SERVER",this->PG_http_globals, TRACK_VARS_SERVER);         
-			SET_HTTP_GLOBAL("_ENV",   this->PG_http_globals, TRACK_VARS_ENV);            
-			SET_HTTP_GLOBAL("_FILES", this->PG_http_globals, TRACK_VARS_FILES);          
-			SET_HTTP_REQUEST_GLOBAL(  this->http_request_global); /*set $_REQUEST*/     
+		if(include_http_globals){			
+			REPLACE_PG_HTTP_GLOBALS_WITH(this->PG_http_globals);
+			SET_HTTP_GLOBALS(this->PG_http_globals, this->http_request_global);  		
 		}
-	}
-	
-	inline void SetFinished(bool finished){
-		this->go_routine_finished = finished;
 	}
 };
 
 struct PhpgoContext : public PhpgoBaseContext, public FreeableImpl{
+public:
+	uint64_t                   go_routine_options;
+	bool                       go_routine_finished;
+	
 public:
 	PhpgoContext(uint64_t options TSRMLS_DC){
 #if PHP_MAJOR_VERSION < 7
@@ -227,6 +294,29 @@ public:
 		this->go_routine_finished = false;
 		this->task_id             = g_Scheduler.GetCurrentTaskID();
 	}
+	
+	inline void SwapOut(){
+		PhpgoBaseContext::SwapOut(this->go_routine_options & GoRoutineOptions::gro_isolate_http_globals);
+		
+		// the coroutine ( not the scheduler ) is finished 
+		// free the task local storage (including this context itself)
+		if(this->go_routine_finished) {
+			if( this->go_routine_options & GoRoutineOptions::gro_isolate_http_globals ){
+				DELREF_HTTP_GLOBALS(this->PG_http_globals, this->http_request_global);
+			}
+			
+			// should be last sentence as this will free the context itself
+			TaskLocalStorage::FreeSpecifics(this->task_id);
+		}
+	}
+		
+	inline void SwapIn(){
+		PhpgoBaseContext::SwapIn(this->go_routine_options & GoRoutineOptions::gro_isolate_http_globals);
+	}
+	
+	inline void SetFinished(bool finished){
+		this->go_routine_finished = finished;
+	}
 };
 
 // the Scheduler Context is essentially the same as the Task's context,
@@ -235,12 +325,34 @@ public:
 // Scheduler Context...
 struct PhpgoSchedulerContext : public PhpgoBaseContext{
 public:
+	bool all_go_routines_finished;
+	
 	PhpgoSchedulerContext(){
 #if PHP_MAJOR_VERSION < 7
 		TSRMLS_FETCH();                     // void ***tsrm_ls = (void ***) ts_resource_ex(0, NULL)
 		TSRMLS_SET_CTX(this->TSRMLS_C);     // this->tsrm_ls = (void ***) tsrm_ls
 #else
 #endif
+		this->task_id = 0;
+		this->all_go_routines_finished = true;
+	}
+	
+	inline void SwapOut(bool include_http_globals){
+		PhpgoBaseContext::SwapOut(include_http_globals);
+		SetAllGoRoutinesFinished(false);
+	}
+		
+	inline void SwapIn(bool include_http_globals){
+		PhpgoBaseContext::SwapIn(include_http_globals);
+		
+		if(include_http_globals && all_go_routines_finished){
+			// all tasks completed
+			DELREF_HTTP_GLOBALS(this->PG_http_globals, this->http_request_global);
+		}
+	}
+	
+	inline void SetAllGoRoutinesFinished(bool finished = true){
+		this->all_go_routines_finished = finished;
 	}
 };
 
@@ -248,32 +360,4 @@ public:
 // use thread local variable to store the scheduler EG's	
 static thread_local PhpgoSchedulerContext scheduler_ctx;
 
-/*null-out our concerned globals to avoid potential problem*/
-#if PHP_MAJOR_VERSION < 7
-#define PHPGO_INITIALIZE_RUNNING_ENVIRONMENT()                     \
-{                                                                  \
-	EG(current_execute_data )   =  NULL;                           \
-	EG(argument_stack       )   =  NULL;                           \
-	EG(scope                )   =  NULL;                           \
-	EG(This                 )   =  NULL;                           \
-	EG(called_scope         )   =  NULL;                           \
-	EG(active_symbol_table  )   =  NULL;                           \
-	EG(return_value_ptr_ptr )   =  NULL;                           \
-	EG(active_op_array      )   =  NULL;                           \
-	EG(opline_ptr           )   =  NULL;                           \
-	INIT_ZVAL(EG(error_zval));                                     \
-	EG(error_zval_ptr       )   =  NULL;                           \
-	EG(user_error_handler   )   =  NULL;                           \
-	/*do not do the following as we inherit globals from parent*/  \
-	/*memset(PG(http_globals), 0, sizeof(PG(http_globals)) );*/    \
-}
-#else
-#define PHPGO_INITIALIZE_RUNNING_ENVIRONMENT()                     \
-{                                                                  \
-	EG(current_execute_data )   =  NULL;                           \
-	EG(vm_stack             )   =  NULL;                           \
-	EG(vm_stack_top         )   =  NULL;                           \
-	EG(vm_stack_end         )   =  NULL;                           \
-}
-#endif
 

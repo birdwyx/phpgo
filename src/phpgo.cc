@@ -669,6 +669,8 @@ PHP_MINFO_FUNCTION(phpgo)
 		phpgo_select(selector->case_array, selector->case_count TSRMLS_CC);
 	}
 	
+	PHP7_AND_ABOVE( defer{ PHPGO_FREE_PZVAL(z); }; );
+	
 	phpgo_zval_add_ref(&z);
 	RETURN_ZVAL(z, 1, 1);
  }
@@ -875,7 +877,6 @@ PHP_FUNCTION(select)
 	do { \
 		if(args) efree(args); \
 		if(case_array) efree(case_array); \
-		if(func_name) FREE_FUNC_NAME(func_name); \
 	}while(0)
 		
 	#define ENSURE_SUFFICIENT_PARAMETERS() \
@@ -905,7 +906,6 @@ PHP_FUNCTION(select)
 	bool exec                  = true;
 	zval* z_selector           = NULL;
 	zval* arg1                 = NULL;
-	FUNC_NAME_TYPE func_name   = NULL;
 	int argc                   = ZEND_NUM_ARGS(); 
 	int case_count             = argc;
 	
@@ -947,11 +947,13 @@ PHP_FUNCTION(select)
 		zval*        ch = NULL;
 		zval*        v = NULL;
 		char*        op_str = NULL;
+		FUNC_NAME_TYPE func_name   = NULL;
 		
 		defer{
-			if(chan)     phpgo_zval_ptr_dtor(&chan);
-			if(value)    phpgo_zval_ptr_dtor(&value);
-			if(callback) phpgo_zval_ptr_dtor(&callback);
+			if(chan)       phpgo_zval_ptr_dtor(&chan);
+			if(value)      phpgo_zval_ptr_dtor(&value);
+			if(callback)   phpgo_zval_ptr_dtor(&callback);
+			if(func_name)  efree(func_name);
 		};
 
 		zval* z = PHP5_VS_7(*args[i], &args[i]);
@@ -1052,11 +1054,11 @@ PHP_FUNCTION(select)
 			}
 #if PHP_MAJOR_VERSION < 7
 			value = v;
+			phpgo_zval_add_ref(&v);
 #else
 			PHPGO_ALLOC_INIT_ZVAL(value);
 			PHPGO_MAKE_COPY_ZVAL(&v,value);
 #endif
-			phpgo_zval_add_ref(&v);
 		}else{
 			PHPGO_ALLOC_INIT_ZVAL(value);
 			PHPGO_MAKE_COPY_ZVAL(&v,value);
@@ -1098,7 +1100,7 @@ PHP_FUNCTION(select)
 
 		phpgo_zval_add_ref(&callback);
 		case_array[i].callback = callback; 
-	}
+	} //for (int i = 0; i < case_count; i++)
 	
 	if( exec )
 		phpgo_select(case_array, case_count TSRMLS_CC);

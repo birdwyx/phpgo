@@ -15,6 +15,7 @@ config.status
 config.sub
 configure
 configure.in
+configure.ac
 tmp-php.ini
 include
 install-sh

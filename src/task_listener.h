@@ -25,7 +25,10 @@ public:
 	 * run by the scheduler each time when the task is about to swap in
 	 */
 	virtual void onSwapIn(uint64_t task_id) noexcept {
-		//printf("---------->onSwapIn(%ld)<-----------\n", task_id);
+		/*printf("---------->onSwapIn(%ld)<-----------\n", task_id);
+		defer{
+			printf("---------->onSwapIn(%ld) returns<-----------\n", task_id);
+		};*/
 		
 		if(old_task_listener){
 			old_task_listener->onSwapIn(task_id);
@@ -42,16 +45,18 @@ public:
 		// running -> sched_ctx and ctx -> running
 		bool including_http_globals = ctx->go_routine_options & GoRoutineOptions::gro_isolate_http_globals;
 		sched_ctx->SwapOut(including_http_globals);
-		ctx->SwapIn(including_http_globals);
-
-		//printf("---------->onSwapIn(%ld) returns<-----------\n", task_id);
+		ctx->SwapIn();
 	}
 
 	/**
 	 * run by the task each time when it's about to swap out
 	 */
 	virtual void onSwapOut(uint64_t task_id) noexcept {
-		//printf("---------->onSwapOut(%ld)<-----------\n", task_id);
+		/*printf("---------->onSwapOut(%ld)<-----------\n", task_id);
+		defer{
+			printf("---------->onSwapOut(%ld) returns<-----------\n", task_id);
+		};*/
+		
 		if(old_task_listener){
 			old_task_listener->onSwapOut(task_id);
 		}
@@ -61,24 +66,31 @@ public:
 		if(!ctx) return;
 		
 		// running -> ctx and sched_ctx -> running
+		ctx->SwapOut();
 		bool including_http_globals = ctx->go_routine_options & GoRoutineOptions::gro_isolate_http_globals;
-		ctx->SwapOut(including_http_globals);
 		sched_ctx->SwapIn(including_http_globals);
-		
-		//printf("---------->onSwapOut(%ld) returns<-----------\n", task_id);
 	}
 	
 	/**
 	 * run by the task each time when it's going to finish running, either normally or abnormally
 	 */
 	virtual void onFinished(uint64_t task_id, const std::exception_ptr eptr) noexcept {
-		//printf("---------->onFinished(%ld)<-----------\n", task_id);
+		/*printf("---------->onFinished(%ld)<-----------\n", task_id);
+		defer{
+			printf("---------->onFinished(%ld) returns<-----------\n", task_id);
+		};*/
 		
 		PhpgoContext* ctx = (PhpgoContext*)TaskLocalStorage::GetSpecific(phpgo_context_key, task_id);
 		if(!ctx) return;
 		
 		ctx->SetFinished(true);
 		//TaskLocalStorage::FreeSpecifics(task_id);
+		
+		PhpgoSchedulerContext* sched_ctx = &scheduler_ctx;
+		if( g_Scheduler.TaskCount() == 1){
+			// the last task is finishing, tell scheduler
+			sched_ctx->SetAllGoRoutinesFinished();
+		}
 	}
 };
 

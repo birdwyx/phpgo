@@ -38,7 +38,9 @@ bool  phpgo_select(GO_SELECT_CASE* case_array, long case_count TSRMLS_DC){
 				// otherwise return the read zval
 				zval* data = GoChan::TryPop(chinfo);
 				if(data) {
-					PHPGO_REPLACE_ZVAL_VALUE(&case_array[i].value, data, 1 /*invoke zval_copy_ctor*/);						   
+					PHPGO_REPLACE_ZVAL_VALUE(&case_array[i].value, data, 1 /*invoke zval_copy_ctor*/);
+					phpgo_zval_ptr_dtor(&data);
+					PHPGO_FREE_PZVAL(data); //efree(data) on php7 and no effect on php5
 					selected_case = &case_array[i];
 					goto exit_while;
 				}
@@ -65,6 +67,7 @@ bool  phpgo_select(GO_SELECT_CASE* case_array, long case_count TSRMLS_DC){
 	}while (i != start );
 	
 exit_while:
+	//todo: may need to dtor the return_value for php5...
 	PHP5_AND_BELOW( zval*   return_value = nullptr; );
 	PHP7_AND_ABOVE( zval    return_value;           );
 	if( selected_case ){

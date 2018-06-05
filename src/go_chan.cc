@@ -21,6 +21,7 @@ ChannelData::ChannelData(zval* zv, bool copy_flag TSRMLS_DC){
 	}else{
 #if PHP_MAJOR_VERSION < 7
 		z = zv;
+		phpgo_zval_add_ref(&zv);
 #else
 		// php7: the zv pointed to zval in stack and cannot be used 
 	    // for sharing, make a new zval in heap
@@ -29,7 +30,6 @@ ChannelData::ChannelData(zval* zv, bool copy_flag TSRMLS_DC){
 		PHPGO_MAKE_COPY_ZVAL(&zv, new_z);
 		z = new_z;
 #endif
-		phpgo_zval_add_ref(&zv);
 	}
 }
 
@@ -223,8 +223,13 @@ zval* GoChan::Pop(void* handle){
 		//the share memory
 		zval_persistent_to_local_copy_ctor(z);
 	}else{
-		z = cd->z;
-		phpgo_zval_add_ref(&z);
+		//z = cd->z;
+		//phpgo_zval_add_ref(&z);
+		PHPGO_ALLOC_ZVAL(z);
+		*z = *(cd->z);
+		PHPGO_INIT_PZVAL(z);  //init reference
+		
+		zval_copy_ctor(z);
 	}
 	
 	return z;
@@ -293,8 +298,14 @@ zval* GoChan::TryPop(void* handle){
 		zval_persistent_to_local_copy_ctor(z);
 		
 	}else{
-		z = cd->z;
-		phpgo_zval_add_ref(&z);
+		//z = cd->z;
+		//phpgo_zval_add_ref(&z);
+		
+		PHPGO_ALLOC_ZVAL(z);
+		*z = *(cd->z);
+		PHPGO_INIT_PZVAL(z);  //init reference
+		
+		zval_copy_ctor(z);
 	}
 	
 	return z;
