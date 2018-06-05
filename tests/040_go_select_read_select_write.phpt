@@ -1,5 +1,5 @@
 --TEST--
-Go select read
+Go select read and select write
 
 --FILE--
 <?php
@@ -120,6 +120,53 @@ go(function() use($ch){
 
 Scheduler::join();
 
+
+$ch = new Chan(["capacity"=>10]);
+
+subtc(4, "Verify select write different data types into channel");
+go(function($ch){
+	for($i = 0; $i<9; $i++){
+		//echo "push $i:\n";
+		$ch->pop();
+	}
+},[$ch]);
+
+
+go(function() use($ch){
+	$v = -1; $u = $v;  $i=0; 
+	class A{
+		public $a;
+		public function say(){
+			echo "i am A\n";
+		}
+	};
+	$obj = new A();
+	@$to_write = [
+		0, 100,  "string",   array(),  array("key"=>1), $obj, 
+		null, $undefined, function(){ echo "i am lamda\n"; },
+	];
+	while($i < 9){
+		select(
+			[
+				'case', $ch, "<-", $to_write[$i % count($to_write)], function($v) use($i){
+					echo "#$i var written :\n";
+					var_export($v); echo "\n";
+					if( is_object($v) and !is_callable($v) ){
+						$v->say();
+					}
+					if( is_callable($v) ){
+						$v();
+					}
+				}
+			]
+		);
+		$i++;
+		usleep(100);
+	}
+});
+
+Scheduler::join();
+
 ?>
 --EXPECT--
 SUB-TC #1: Verify reading int from channel into a reference
@@ -128,4 +175,32 @@ SUB-TC #2: Verify reading string from channel into a reference
 SUB-TC #2: PASS
 SUB-TC #3: Verify reading array from channel into a reference
 SUB-TC #3: PASS
+SUB-TC #4: Verify select write different data types into channel
+#0 var written :
+0
+#1 var written :
+100
+#2 var written :
+'string'
+#3 var written :
+array (
+)
+#4 var written :
+array (
+  'key' => 1,
+)
+#5 var written :
+A::__set_state(array(
+   'a' => NULL,
+))
+i am A
+#6 var written :
+NULL
+#7 var written :
+NULL
+#8 var written :
+Closure::__set_state(array(
+))
+i am lamda
+
 
