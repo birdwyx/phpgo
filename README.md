@@ -207,3 +207,8 @@ Then, you'll need to add -DENABLE_BOOST_CONTEXT=ON option to the "cmake" command
 #make && make install
 ```
 note: if you see compiler errors during the "make" step, make sure you've done the "rm -rf * " under the build directory
+
+# 5. More...
+## [Phpgo中文参考手册](https://github.com/birdwyx/phpgo/REFERENCE_CN.md) 
+## [Phpgo Reference Manual](https://github.com/birdwyx/phpgo/REFERENCE_EN.md)
+
