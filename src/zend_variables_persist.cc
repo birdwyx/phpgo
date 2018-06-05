@@ -107,7 +107,7 @@ ZEND_API void _zval_persistent_copy_ctor_func(zval *zvalue ZEND_FILE_LINE_DC)
 			break;
 #ifdef IS_CONSTANT
 		case IS_CONSTANT:
-			CHECK_ZVAL_STRING_REL(zvalue);
+			CHECK_ZVAL_STRING_REL( PHP5_VS_7(zvalue, Z_STR_P(zvalue)) ) ;
 #if PHP_MAJOR_VERSION < 7
 			if (!IS_INTERNED(zvalue->value.str.val)) {
 				zvalue->value.str.val = (char *) pestrndup(zvalue->value.str.val, zvalue->value.str.len, 1);
@@ -118,7 +118,7 @@ ZEND_API void _zval_persistent_copy_ctor_func(zval *zvalue ZEND_FILE_LINE_DC)
 			break;
 #endif
 		case IS_STRING:
-			CHECK_ZVAL_STRING_REL(zvalue);
+			CHECK_ZVAL_STRING_REL( PHP5_VS_7(zvalue, Z_STR_P(zvalue)) ) ;
 #if PHP_MAJOR_VERSION < 7
 			if (!IS_INTERNED(zvalue->value.str.val)) {
 				zvalue->value.str.val = (char *) pestrndup(zvalue->value.str.val, zvalue->value.str.len, 1);
@@ -231,7 +231,7 @@ ZEND_API void _zval_persistent_to_local_copy_ctor_func(zval *zvalue ZEND_FILE_LI
 			break;
 #ifdef IS_CONSTANT
 		case IS_CONSTANT:
-			CHECK_ZVAL_STRING_REL(zvalue);
+			CHECK_ZVAL_STRING_REL( PHP5_VS_7(zvalue, Z_STR_P(zvalue)) ) ;
 #if PHP_MAJOR_VERSION < 7
 			if (!IS_INTERNED(zvalue->value.str.val)) {
 				zvalue->value.str.val = (char *) estrndup_rel(zvalue->value.str.val, zvalue->value.str.len);
@@ -242,7 +242,7 @@ ZEND_API void _zval_persistent_to_local_copy_ctor_func(zval *zvalue ZEND_FILE_LI
 			break;
 #endif
 		case IS_STRING:
-			CHECK_ZVAL_STRING_REL(zvalue);
+			CHECK_ZVAL_STRING_REL( PHP5_VS_7(zvalue, Z_STR_P(zvalue)) ) ;
 #if PHP_MAJOR_VERSION < 7
 			if (!IS_INTERNED(zvalue->value.str.val)) {
 				zvalue->value.str.val = (char *) estrndup_rel(zvalue->value.str.val, zvalue->value.str.len);
@@ -341,7 +341,7 @@ ZEND_API void _zval_persistent_dtor_func(zval *zvalue ZEND_FILE_LINE_DC)
 #ifdef IS_CONSTANT
 		case IS_CONSTANT:
 #endif
-			CHECK_ZVAL_STRING_REL(zvalue);
+			CHECK_ZVAL_STRING_REL( PHP5_VS_7(zvalue, Z_STR_P(zvalue)) ) ;
 			STR_PERMENENT_FREE_REL( __Z_STRING(zvalue) );
 			break;
 		case IS_ARRAY:

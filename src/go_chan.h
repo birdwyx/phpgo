@@ -42,6 +42,9 @@ struct ChannelData{
 			PHPGO_FREE_PERMENENT_PZVAL(z);
 		}else{
 			phpgo_zval_ptr_dtor(&z);
+			//php7: the dtor won't free the z for us
+			//note: PHPGO_FREE_PZVAL() has no effect in php5
+			PHPGO_FREE_PZVAL(z);
 		}
 	}
 };
