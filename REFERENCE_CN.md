@@ -18,5 +18,11 @@ extension=phpgo.so
 ## 预定义常量
 -
 ## phpgo函数
-- [go()](https://https://github.com/birdwyx/phpgo/md/go.md) 创建go routine
-- [select()](https://https://github.com/birdwyx/phpgo/md/select.md) go事件选择器
+- [go](https://github.com/birdwyx/phpgo/md/go.md) — 创建go routine
+- [goo](https://github.com/birdwyx/phpgo/md/go.md) — 创建go routine，支持可选参数
+- [select](https://github.com/birdwyx/phpgo/md/select.md) — go事件选择器
+
+## [\go\Scheduler](https://github.com/birdwyx/phpgo/md/scheduler.md) — go协程调度器类：Scheduler
+- [\go\Scheduler::run](https://github.com/birdwyx/phpgo/md/scheduler-run.md) — 运行一次协程调度器，所有就绪协程运行一遍
+- [\go\Scheduler::join](https://github.com/birdwyx/phpgo/md/scheduler-join.md) — 运行协程调度器直到所有协程运行完成
+- [\go\Scheduler::loop](https://github.com/birdwyx/phpgo/md/scheduler-loop.md) — 一直运行协程调度器
