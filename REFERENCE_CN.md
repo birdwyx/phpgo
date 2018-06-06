@@ -33,5 +33,13 @@ extension=phpgo.so
 - [\go\Chan::__destruct](https://github.com/birdwyx/phpgo/md/chan-destruct.md) — 销毁管道
 - [\go\Chan::pop](https://github.com/birdwyx/phpgo/md/chan-pop.md) — 从管道头部读取一条数据，如果没有数据则阻塞，如果管道关闭则返回NULL，如果出错则返回false
 - [\go\Chan::push](https://github.com/birdwyx/phpgo/md/chan-push.md) — 在管道尾部添加一条数据，如果成功则返回true，如果管道已满、管道关闭或出错则返回false
-- [\go\Chan::tryPop](https://github.com/birdwyx/phpgo/md/chan-trypop.md) — 从管道头部读取一条数据，如果没有数据则返回false，如果管道关闭则返回NULL
+- [\go\Chan::tryPop](https://github.com/birdwyx/phpgo/md/chan-trypop.md) — 从管道头部读取一条数据，如果管道关闭则返回NULL，如果没有数据或出错则返回false，
 - [\go\Chan::tryPush](https://github.com/birdwyx/phpgo/md/chan-trypush.md) — 在管道尾部添加一条数据，如果成功则返回true，如果管道已满、管道关闭或出错则返回false
+
+## [\go\WaitGroup](https://github.com/birdwyx/phpgo/md/waitgroup.md) — go WaitGroup类
+- [\go\WaitGroup::Add](https://github.com/birdwyx/phpgo/md/chan-close.md) — 增加WaitGroup等待计数，可指定增加数量
+- [\go\WaitGroup::__construct](https://github.com/birdwyx/phpgo/md/chan-construct.md) — 创建WaitGroup
+- [\go\WaitGroup::__destruct](https://github.com/birdwyx/phpgo/md/chan-destruct.md) — 销毁WaitGroup
+- [\go\WaitGroup::Done](https://github.com/birdwyx/phpgo/md/chan-pop.md) — WaitGroup等待计数减一，相当于WaitGroup::Add(-1)
+- [\go\WaitGroup::Wait](https://github.com/birdwyx/phpgo/md/chan-push.md) — 等待WaitGroup等待计数减小到0，如果调用者为协程则当前协程挂起，如果调用者为调度线程，则运行调度器直到等待计数减小到0（tbc）
+
