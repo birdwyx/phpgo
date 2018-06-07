@@ -23,7 +23,7 @@ go(function(){
 ```
 - 普通函数，如:
 ```
-go('hello', ['World']); //相当于执行hello('World');
+go('hello', ['World']); //相当于在协程里执行hello('World');
 ```
 - 类的静态方法，如：
 ```
