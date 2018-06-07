@@ -1,12 +1,12 @@
 # go
   
-(PHP 5 >= 5.4.0, PHP 7, phpgo >= 0.9.0)
-go — 创建go routine
+\(PHP 5 >= 5.4.0, PHP 7, phpgo >= 0.9.0\)
+go — 创建协程（go routine）
 
-## 描述
+## 说明
 bool go ( callable $callback \[, array $parameters\] )
 
-## Parameters
+## 参数
 callback
 mixed callback (\[mixed $parameter1, \[ mixed $parameter2, ...\] \])
 回调函数，也就是go routine的主函数，go routine的主函数在协程创建后立即执行
@@ -19,7 +19,7 @@ $parameters数组中的每个参数与$callback参数表里的参数依次匹配
 ## 返回值
 成功返回TURE，失败返回FALSE。
 
-## 示例程序
+## 示例
 ### 1. Hello World
 ```
 <?php
@@ -58,7 +58,7 @@ Hello phpgo!
 <?php
 use go\Scheduler;
 
-$message = "";
+$message = '';
 go(function(&$msg){
     echo "Alice sends a greeting\n";
     $msg = "Greeting from Alice\n";
@@ -94,4 +94,29 @@ echo $message;
 Alice sends a greeting
 Greeting from Alice
 ```
+上面这个示例展示了使用channel来与go routine通信的方法，也展示了可以使用use 关键字结合匿名函数来向go routine传参，一般来说使用use来传递只读参数，如果在use里传入引用并在go routine里对相应参数进行更改，则与上面示例3一样的耦合问题。
+关于channel的使用，参见 [go\Chan](https://github.com/birdwyx/phpgo/md/cn/chan.md)
+
+### 5. 使用命名函数
+
+<?php
+use go\Scheduler;
+
+function hello($name){
+    echo "Hello ${name}!\n";
+}
+
+go('hello', \['phpgo'\]);
+
+Scheduler::join();
+```
+输出：
+```
+Hello world!
+```
+go 的回调参数还可以是
+- 匿名函数，如示例1
+- 普通函数，如本示例
+- 类的静态方法，如go('ClassA::hello', 'phpgo')或go(["ClassA", "hello"], "phpgo") 在协程里执行 ClassA::Hello('phpgo')
+- 类的非静态方法，使用go([$obj, 'hello'], ['phpgo']) 在协程里执行 $obj->hello('phpgo')
 
