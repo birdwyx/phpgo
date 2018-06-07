@@ -21,8 +21,8 @@ phpgo can be used under both CLI mode and fast-cgi (php-fpm) mode
 phpgo supports php5.5 to 7.2 on linux as of today
 
 # 0. Reference Manuals
-### [Phpgo中文参考手册](https://github.com/birdwyx/phpgo/REFERENCE_CN.md) 
-### [Phpgo Reference Manual](https://github.com/birdwyx/phpgo/REFERENCE_EN.md)
+### [Phpgo中文参考手册](https://github.com/birdwyx/phpgo/blob/master/REFERENCE_CN.md) 
+### [Phpgo Reference Manual](https://github.com/birdwyx/phpgo/blob/master/REFERENCE_EN.md)
 
 # 1. Getting started
 ## 1.1. Install libgo
