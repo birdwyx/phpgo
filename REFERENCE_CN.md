@@ -10,11 +10,11 @@
 #### 1. 安装boost(可选)
 libgo依赖boost context以获得最优的协程切换性能，因此在安装libgo之前建议安装boost：
 ```
-#wget https://sourceforge.net/projects/boost/files/boost/1.59.0/boost_1_59_0.tar.gz
-#tar -xvf boost_1_59_0.tar.gz
-#cd boost_1_59_0
-#./bootstrap.sh
-#./b2 -q install
+wget https://sourceforge.net/projects/boost/files/boost/1.59.0/boost_1_59_0.tar.gz
+tar -xvf boost_1_59_0.tar.gz
+cd boost_1_59_0
+./bootstrap.sh
+./b2 -q install
 ```
 
 #### 2. 安装libgo
@@ -36,12 +36,12 @@ ldconfig
 
 通过以下步骤安装phpgo:
 ```
-#git clone https://github.com/birdwyx/phpgo
-#cd phpgo
-#phpize
-#./configure -with-php-config=<the path to php-config>
-#make
-#make install
+git clone https://github.com/birdwyx/phpgo
+cd phpgo
+phpize
+./configure -with-php-config=<the path to php-config>
+make
+make install
 ```
 
 ### 运行时配置
@@ -121,7 +121,7 @@ service php-fpm restart
 
 ## [go\Time](https://github.com/birdwyx/phpgo/md/cn/time.md) — Time类
 - [go\Time::after](https://github.com/birdwyx/phpgo/md/cn/time-after.md) — 创建并返回一个Channel，在指定纳秒时间后phpgo将当时的精确时间写入Channel
-- [go\Time::sleep](https://github.com/birdwyx/phpgo/md/cn/time-sleep.md) — 进行一次事件轮询，返回本Selector对象
+- [go\Time::sleep](https://github.com/birdwyx/phpgo/md/cn/time-sleep.md) — 协程挂起一段时间（单位纳秒），如果在协程外调用，则调度线程挂起相应时长
 - [go\Time::tick](https://github.com/birdwyx/phpgo/md/cn/time-tick.md) — 创建并返回一个Channel，phpgo周期性地、以指定纳秒时间间隔将当时的精确时间写入Channel
 
 ## [go\Runtime](https://github.com/birdwyx/phpgo/md/cn/runtime.md) — Runtime类
