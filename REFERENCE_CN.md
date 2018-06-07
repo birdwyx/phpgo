@@ -53,7 +53,22 @@ extension=phpgo.so
 ```
 export LD_PRELOAD=liblibgo.so; php my_app.php; export LD_PRELOAD=
 ```
-注意在运行之前设置了环境变量LD_PRELOAD。这样做得原因是你可以通过LD_PRELOAD 让你的php代码及第三方扩展中的涉及I/O操作的同步函数调用（如redis、mysql数据读写，网络读写，以及sleep/usleep等）自动“异步化”，在协程供调用这些涉及IO操作的函数时，当前协程会自动切出，将执行权利让给其他协程。当然你也可以选择不设置LD_PRELOAD，这样你的代码及第三方扩展中的同步I/O操作会维持同步，在这些操作完成前，其他协程，甚至是调度器，在该操作完成之前不会运行。
+注意在运行之前设置了环境变量LD_PRELOAD。这样做得原因是你可以通过LD_PRELOAD 让你的php代码及第三方扩展中的涉及I/O操作的同步函数调用（如redis、mysql数据读写，网络读写，以及sleep/usleep等）自动“异步化”，在协程供调用这些涉及IO操作的函数时，当前协程会自动切出，将执行权利让给其他协程。
+
+当然你也可以选择不设置LD_PRELOAD，这样你的代码及第三方扩展中的同步I/O操作会维持同步，在这些操作完成前，其他协程，甚至是调度器，在该操作完成之前不会运行。
+
+如果你是在命令行下玩phpgo，运行完你的App之后，清除一下LD_PRELOAD，因为提前加载的libgo虽然和phpgo可以很好的配合，但未必不会跟linux下其他应用程序打架。
+
+最好是做一个脚本，将LD_PRELOAD和你的php程序包装进去：
+```
+my_app.sh:
+export LD_PRELOAD=liblibgo.so; 
+php my_app.php; 
+```
+然后运行 my_app.sh 来启动你的应用程序
+```
+./my_app.sh&
+```
 
 #### 3. php-fpm方式
 在php-fpm服务管理脚本（通常是 /etc/init.d/php-fpm）中 “start)” 一节中加入以下一行
