@@ -4,15 +4,82 @@
 ## 安装／配置
 ### 需求
 - phpgo目前支持linux操作系统
-- phpgo依赖c++协程库libgo实现底层协程特性。在安装phpgo之前，必须先安装好libgo。
+- phpgo依赖c++协程库libgo实现底层协程特性。在安装phpgo之前，必须先安装好libgo
+- libgo依赖boost context以获得最优的协程切换性能，因此在安装libgo之前建议安装boost
 ### 安装
-- 安装libgo
-- 安装phpgo
+#### 1. 安装boost(可选)
+libgo依赖boost context以获得最优的协程切换性能，因此在安装libgo之前建议安装boost：
+```
+#wget https://sourceforge.net/projects/boost/files/boost/1.59.0/boost_1_59_0.tar.gz
+#tar -xvf boost_1_59_0.tar.gz
+#cd boost_1_59_0
+#./bootstrap.sh
+#./b2 -q install
+```
+
+#### 2. 安装libgo
+通过以下步骤安装libgo:
+```
+git clone https://github.com/yyzybb537/libgo
+cd libgo
+git checkout master
+mkdir build
+cd build
+rm -rf *
+cmake .. -DENABLE_BOOST_CONTEXT=ON  #如果未安装boost，则替换为 cmake ..
+make
+make install
+ldconfig
+```
+
+#### 3. 安装phpgo
+
+通过以下步骤安装phpgo:
+```
+#git clone https://github.com/birdwyx/phpgo
+#cd phpgo
+#phpize
+#./configure -with-php-config=<the path to php-config>
+#make
+#make install
+```
+
 ### 运行时配置
-- 在php.ini 中添加如下配置
+#### 1. 在php.ini 中添加如下配置
 ```
 extension=phpgo.so
 ```
+#### 2. 命令行方式
+```
+export LD_PRELOAD=liblibgo.so; php my_app.php; export LD_PRELOAD=
+```
+注意在运行之前设置了环境变量LD_PRELOAD。这样做得原因是你可以通过LD_PRELOAD 让你的php代码及第三方扩展中的涉及I/O操作的同步函数调用（如redis、mysql数据读写，网络读写，以及sleep/usleep等）自动“异步化”，在协程供调用这些涉及IO操作的函数时，当前协程会自动切出，将执行权利让给其他协程。当然你也可以选择不设置LD_PRELOAD，这样你的代码及第三方扩展中的同步I/O操作会维持同步，在这些操作完成前，其他协程，甚至是调度器，在该操作完成之前不会运行。
+
+#### 3. php-fpm方式
+在php-fpm服务管理脚本（通常是 /etc/init.d/php-fpm）中 “start)” 一节中加入以下一行
+```
+export LD_PRELOAD=liblibgo.so
+```
+加完后，php-fpm脚本大概会长这样：
+```
+/etc/init.d/php-fpm:
+...
+case "$1" in
+    start)
+        echo -n "Starting php-fpm - with libgo preloaded"
+        export LD_PRELOAD=liblibgo.so
+        $php_fpm_BIN --daemonize $php_opts
+        if [ "$?" != 0 ] ; then
+            echo " failed"
+            exit 1
+        fi
+...
+```
+然后，命令行执行 service php-fpm restart重启php-fpm使改动生效
+```
+service php-fpm restart
+```
+
 ## phpgo函数
 - [go](https://github.com/birdwyx/phpgo/md/cn/go.md) — 创建go routine
 - [goo](https://github.com/birdwyx/phpgo/md/cn/goo.md) — 创建go routine，支持可选参数
