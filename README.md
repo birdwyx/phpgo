@@ -12,7 +12,7 @@ phpgo: A php extension that brings into php the go core features:
 - go routine scheduler
 
 phpgo also brings in a break-through feature which: 
-- automatically coverts the synchronized function calls in the php extensions (e.g. PDO, redis... etc) into asynchronized 
+- automatically converts the synchronized function calls in the php extensions (e.g. PDO, redis... etc) into asynchronized 
 
 This allows the swithing of execution to another go routine if one go routine is blocked by blocking I/O, thus provides hundred to thousand times of concurrent executions under the same running environment
 
