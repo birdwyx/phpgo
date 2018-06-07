@@ -14,25 +14,25 @@ mixed callback (\[mixed $parameter1, \[ mixed $parameter2, ...\] \])
 
 回调函数，也就是go routine的主函数，go routine的主函数在协程创建后立即执行。
 
-go 的回调函数参数可以是：
-- 匿名函数，如：
-```
-go(function(){
-    echo "Hello World!\n";
-});
-```
-- 普通函数，如:
-```
-go('hello', ['World']); //相当于在协程里执行hello('World');
-```
-- 类的静态方法，如：
-```
-go('ClassA::hello', 'phpgo');  //或go(["ClassA", "hello"], "phpgo"); 相当于在协程里执行 ClassA::Hello('phpgo');
-```
-- 类的非静态方法，如：
-```
-go([$obj, 'hello'], ['phpgo']); //相当于在协程里执行 $obj->hello('phpgo');
-```
+>go 的回调函数参数可以是：
+>- 匿名函数，如：
+>```
+>go(function(){
+>    echo "Hello World!\n";
+>});
+>```
+>- 普通函数，如:
+>```
+>go('hello', ['World']); //相当于在协程里执行hello('World');
+>```
+>- 类的静态方法，如：
+>```
+>go('ClassA::hello', 'phpgo');  //或go(["ClassA", "hello"], "phpgo"); 相当于在协程里执行 ClassA::Hello('phpgo');
+>```
+>- 类的非静态方法，如：
+>```
+>go([$obj, 'hello'], ['phpgo']); //相当于在协程里执行 $obj->hello('phpgo');
+>```
 
 #### parameters
 
@@ -52,7 +52,7 @@ $parameters数组中的每个参数与$callback参数表里的参数依次匹配
 use go\Scheduler;
 
 go(function(){
-  echo "Hello World!"
+  echo "Hello World!";
 });
 
 Scheduler::join();
@@ -67,7 +67,7 @@ Hello world!
 <?php
 use go\Scheduler;
 
-$name = "phpgo"
+$name = "phpgo";
 go(function(){
     echo "Hello ${name}!\n";
 }, [$name]);
