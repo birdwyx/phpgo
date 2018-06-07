@@ -8,7 +8,6 @@
 - libgo依赖boost context以获得最优的协程切换性能，因此在安装libgo之前建议安装boost
 ### 安装
 #### 1. 安装boost(可选)
-libgo依赖boost context以获得最优的协程切换性能，因此在安装libgo之前建议安装boost：
 ```
 wget https://sourceforge.net/projects/boost/files/boost/1.59.0/boost_1_59_0.tar.gz
 tar -xvf boost_1_59_0.tar.gz
