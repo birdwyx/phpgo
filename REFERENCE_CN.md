@@ -13,11 +13,9 @@
 ```
 extension=phpgo.so
 ```
-## phpgo函数
-- [go](https://github.com/birdwyx/phpgo/
-
-/go.md) — 创建go routine
-- [goo](https://github.com/birdwyx/phpgo/md/cn/go.md) — 创建go routine，支持可选参数
+## phpgo函数md/cn
+- [go](https://github.com/birdwyx/phpgo/md/cn/go.md) — 创建go routine
+- [goo](https://github.com/birdwyx/phpgo/md/cn/goo.md) — 创建go routine，支持可选参数
 - [select](https://github.com/birdwyx/phpgo/md/cn/select.md) — 进行一次事件轮询，并返回一个Selector对象
 
 ## [\go\Scheduler](https://github.com/birdwyx/phpgo/md/cn/scheduler.md) — go协程调度器类：Scheduler
