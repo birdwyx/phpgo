@@ -27,7 +27,7 @@ mixed callback (\[mixed $parameter1, \[ mixed $parameter2, ...\] \])
 >```
 >- 类的静态方法，如：
 >```
->go('ClassA::hello', 'phpgo');  //或go(["ClassA", "hello"], "phpgo"); 相当于在协程里执行 ClassA::Hello('phpgo');
+>go('ClassA::hello', ['phpgo']);  //或go(["ClassA", "hello"], ['phpgo']); 相当于在协程里执行 ClassA::Hello('phpgo');
 >```
 >- 类的非静态方法，如：
 >```
