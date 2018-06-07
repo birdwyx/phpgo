@@ -93,7 +93,7 @@ go(function (){  //go 1
 			
 			Time::sleep(10 * Time::MILLISECOND); // = usleep(10*1000);
 			
-			if( time()-$time0 > ($c+100) / 1000 ) {
+			if( time()-$time0 > ($c+1000) / 1000 ) {
 				echo "timer should expire at ". ($c/1000) .
 				     " seconds but expired at " . (time()-$time0) . 
 					 " seconds\n"; 
