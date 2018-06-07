@@ -114,7 +114,7 @@ function hello($name){
     echo "Hello ${name}!\n";
 }
 
-go('hello', \['phpgo'\]);
+go('hello', ['phpgo']);
 
 Scheduler::join();
 ```
@@ -125,6 +125,6 @@ Hello phpgo!
 go 的回调参数还可以是：
 - 匿名函数，如示例1
 - 普通函数，如本示例
-- 类的静态方法，使用go('ClassA::hello', 'phpgo')或go(["ClassA", "hello"], "phpgo") 在协程里执行 ClassA::Hello('phpgo')
-- 类的非静态方法，使用go([$obj, 'hello'], ['phpgo']) 在协程里执行 $obj->hello('phpgo')
+- 类的静态方法，使用go('ClassA::hello', 'phpgo')或go(\["ClassA", "hello"\], "phpgo") 在协程里执行 ClassA::Hello('phpgo')
+- 类的非静态方法，使用go(\[$obj, 'hello'\], \['phpgo'\]) 在协程里执行 $obj->hello('phpgo')
 
