@@ -69,7 +69,7 @@ goo($options, function() use ($get, $ch) {
     if($get == $GET) echo 'go routine correctly inherits $_GET' . PHP_EOL;
     $_GET['var'] = 'world';
     $ch->push(1);
-}
+});
 $ch->pop(); // wait the go routine to finish
 
 if($_GET['var'] == 'hello') echo 'change of $_GET in go routine does not impact the ouside' . PHP_EOL;
