@@ -67,7 +67,7 @@ $options = [
 
 $ch = new Chan(1);
 goo($options, function() use ($get, $ch) {
-    if($get == $GET) echo 'go routine correctly inherits $_GET' . PHP_EOL;
+    if($get == $_GET) echo 'go routine correctly inherits $_GET' . PHP_EOL;
     $_GET['var'] = 'world';
     $ch->push(1);
 });
