@@ -58,6 +58,7 @@ use go\Chan;
 use go\Scheduler;
 
 $_GET['var'] = "hello";
+$get = $_GET;
 
 $options = [
 	'stack_size' => 64 * 1024, 
