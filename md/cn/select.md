@@ -38,7 +38,7 @@ switch_type大小写不敏感。
 >select( ['case', $ch, '->', function($v){...} ], [...] );           //从$ch读取数据到临时变量，并传给function
 >select( ['case', $ch, function($v){...} ], [...] );                 //从$ch读取数据到临时变量，并传给function
 >
->select( ['case', $ch, '<-', $value, function($v){...} ], [...] );   //将$value写到$ch中，然后将$value传给function
+>select( ['case', $ch, '<-', $value, function($v){...} ], [...] ); //将$value写到$ch中，然后将$value传给function
 >```
 
 #### 'default'分支
