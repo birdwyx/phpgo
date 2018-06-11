@@ -45,13 +45,13 @@ switch_type大小写不敏感。
 语法如下：
 ##### array('default', Callable $callback)
 select轮询所有分支，随机选择一个可读写的'case'分支来执行，如果所有'case'分支都不可读或写，则select执行'default'分支的回调函数$callback，不传入参数。  
->例如，一下案例在各个case分支都没数据读取的时候，等待一秒钟：
+>例如，以下案例在各个case分支没有读写操作可进行的时候，等待一秒钟：
 >```
 >select(
-    ['case', ...], 
-    ['case', ...],
-    ['default', function(){ sleep(1); }]
-);
+>    ['case', ...], 
+>    ['case', ...],
+>    ['default', function(){ sleep(1); }]
+>);
 >```
 
 ## 返回值
