@@ -4,9 +4,9 @@
 
 select — 进行一次事件轮询，并返回一个Selector对象
 
-和golang的select语法结构类似， phpgo select轮询指定的分支，随机选择一个可读写（即，channel可读或可写）的分支，执行对应读写操作后，执行该分支对应的回调函数，并传入所读/写的数据。
+和golang的select语法结构类似， phpgo select轮询所有指定的分支，随机选择一个可读写（即，channel可读或可写）的分支，执行对应读写操作后，再执行该分支对应的回调函数，并传入所读到/写入的数据。
 
-如果没有可读写分支，select执行'default'分支对应的回调函数。如果没有'default'分支，函数正常返回。
+如果没有可读写分支，select执行'default'分支对应的回调函数。如果没有'default'分支，则什么都不做正常返回。
 
 ## 说明
 #### Selector select ( array $case1, [ array $case2, ...] )
@@ -14,12 +14,27 @@ select — 进行一次事件轮询，并返回一个Selector对象
 ## 参数
 #### case
 一个case代表select事件轮询的一个分支，每个case是一个数组，组成如下：
-array( string $switch_type, \[ Chan $channel, string $operator, mixed $operand, \] callable $callback )
+#### array( string $switch_type, \[ Chan $channel, string $operator, mixed $value, \] Callable $callback )
 
 其中 switch_type 可以以下两者之一：
-- 'case'，普通分支，类似golang中的case关键字所代表的的分支
-- 'default'，默认分支，类似golang中的default关键字所代表的的分支
 
+- 'case'，普通分支，类似golang中的case关键字所代表的的分支。
+
+- 'default'，默认分支，类似golang中的default关键字所代表的的分支。
+
+switch_type大小写不敏感。
+
+- 'case'分支
+语法如下：
+#### array('case',  Chan $channel, \['->', \[mixed &$value\]\] |  \['<-', mixed $value\], Callable $callback)
+其中：  
+'->'操作符表示从通道$channel中读取数据到$value中，然后调用$callback($value), $value省略时，则从$channel读取数据到临时变量，并传入$callback中。$value不省略时，必须是引用参数。  
+'<-'操作符表示将$value写入到$channel中，写入后调用$callback($value)。此时$value不能省略。
+
+- 'default'分支
+语法如下：
+#### array('default', Callable $callback)
+select轮询所有分支，随机选择一个可读写的'case'分支来执行，如果所有'case'分支都不可读或写，则select执行'default'分支的回调函数$callback，不传入参数。
 
 ## 返回值
 select 分析传入的分支参数，生成内部的Selector对象，将分支信息存入该对象，然后返回该Selector对象。
