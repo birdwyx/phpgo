@@ -14,7 +14,7 @@ select — 进行一次事件轮询，并返回一个Selector对象
 ## 参数
 #### case
 一个case代表select事件轮询的一个分支，每个case是一个数组，组成如下：
-#### array( string $switch_type, \[ Chan $channel, string $operator, mixed $value, \] Callable $callback )
+##### array( string $switch_type, \[ Chan $channel, string $operator, mixed $value, \] Callable $callback )
 
 其中 switch_type 可以以下两者之一：
 
@@ -24,16 +24,16 @@ select — 进行一次事件轮询，并返回一个Selector对象
 
 switch_type大小写不敏感。
 
-- 'case'分支
+#### 'case'分支
 语法如下：
-#### array('case',  Chan $channel, \['->', \[mixed &$value\]\] |  \['<-', mixed $value\], Callable $callback)
+##### array('case',  Chan $channel, \['->', \[mixed &$value\]\] |  \['<-', mixed $value\], Callable $callback)
 其中：  
 '->'操作符表示从通道$channel中读取数据到$value中，然后调用$callback($value), $value省略时，则从$channel读取数据到临时变量，并传入$callback中。$value不省略时，必须是引用参数。  
 '<-'操作符表示将$value写入到$channel中，写入后调用$callback($value)。此时$value不能省略。
 
-- 'default'分支
+#### 'default'分支
 语法如下：
-#### array('default', Callable $callback)
+##### array('default', Callable $callback)
 select轮询所有分支，随机选择一个可读写的'case'分支来执行，如果所有'case'分支都不可读或写，则select执行'default'分支的回调函数$callback，不传入参数。
 
 ## 返回值
@@ -45,3 +45,43 @@ select 分析传入的分支参数，生成内部的Selector对象，将分支�
 
 ## 示例
 
+### 1. Select读取数据
+```
+<?php
+use \Go\Chan;
+use \Go\Scheduler;
+
+$ch = new Chan(["capacity"=>1]);
+
+go(function() use($ch){
+    $read = false; $df = false; $v=0;
+    $ch->push(1);
+    select(
+        [
+            'case', $ch, "->", &$v, function($value) use(&$read){
+                //$value (==$v) should be 1 as read from $ch
+                if($value===1)
+                    $read = true;
+            }
+        ],
+        [
+            'default', function() use(&$df){
+                $df = true;
+             }
+		]
+    );
+    
+    assert(
+        $read===true &&  //should hit the channel-read branch
+        $df===false &&   //should not hit the default branch
+        $v === 1         //$v should be 1 as the popped data from channel is assigned to its reference
+    );
+    echo "success\n";
+});
+
+Scheduler::join();
+```
+输出success，无断言失败：
+```
+success
+```
