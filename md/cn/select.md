@@ -6,7 +6,7 @@ select — 进行一次事件轮询，并返回一个Selector对象
 
 和golang的select语法结构类似， phpgo select轮询所有指定的分支，随机选择一个可读写（即，channel可读或可写）的分支，执行对应读写操作后，再执行该分支对应的回调函数，并传入所读到/写入的数据。
 
-如果没有可读写分支，select执行'default'分支对应的回调函数。如果没有'default'分支，则什么都不做正常返回。
+如果没有可读写分支，select执行'default'分支对应的回调函数。如果连'default'分支都没有，则select阻塞一直到有读写操作可进行。
 
 ## 说明
 #### Selector select ( array $case1, [ array $case2, ...] )
