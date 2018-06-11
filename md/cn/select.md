@@ -44,7 +44,15 @@ switch_type大小写不敏感。
 #### 'default'分支
 语法如下：
 ##### array('default', Callable $callback)
-select轮询所有分支，随机选择一个可读写的'case'分支来执行，如果所有'case'分支都不可读或写，则select执行'default'分支的回调函数$callback，不传入参数。
+select轮询所有分支，随机选择一个可读写的'case'分支来执行，如果所有'case'分支都不可读或写，则select执行'default'分支的回调函数$callback，不传入参数。  
+>例如，一下案例在各个case分支都没数据读取的时候，等待一秒钟：
+>```
+>select(
+    ['case', ...], 
+    ['case', ...],
+    ['default', function(){ sleep(1); }]
+);
+>```
 
 ## 返回值
 select 分析传入的分支参数，生成内部的Selector对象，将分支信息存入该对象，然后返回该Selector对象。
