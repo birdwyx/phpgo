@@ -99,7 +99,7 @@ service php-fpm restart
 ## phpgo函数
 - [go](https://github.com/birdwyx/phpgo/blob/master/md/cn/go.md) — 创建go routine
 - [goo](https://github.com/birdwyx/phpgo/blob/master/md/cn/goo.md) — 创建go routine，支持可选参数
-- [select](https://github.com/birdwyx/phpgo/md/cn/select.md) — 进行一次事件轮询，并返回一个Selector对象
+- [select](https://github.com/birdwyx/phpgo/blob/master/md/cn/select.md) — 进行一次事件轮询，并返回一个Selector对象
 
 ## [go\Scheduler](https://github.com/birdwyx/phpgo/md/cn/scheduler.md) — go协程调度器类：Scheduler
 - [go\Scheduler::join](https://github.com/birdwyx/phpgo/md/cn/scheduler-join.md) — 运行协程调度器直到所有协程运行完成
