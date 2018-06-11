@@ -50,7 +50,9 @@ extension=phpgo.so
 ```
 #### 2. 命令行方式
 ```
-export LD_PRELOAD=liblibgo.so; php my_app.php; export LD_PRELOAD=
+export LD_PRELOAD=liblibgo.so
+php my_app.php
+unset -v LD_PRELOAD
 ```
 注意在运行之前设置了环境变量LD_PRELOAD。这样做得原因是你可以通过LD_PRELOAD 让你的php代码及第三方扩展中的涉及I/O操作的同步函数调用（如redis、mysql数据读写，网络读写，以及sleep/usleep等）自动“异步化”，在协程供调用这些涉及IO操作的函数时，当前协程会自动切出，将执行权利让给其他协程。
 
