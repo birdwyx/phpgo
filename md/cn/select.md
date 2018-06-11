@@ -67,8 +67,8 @@ go(function() use($ch){
         [
             'default', function() use(&$df){
                 $df = true;
-             }
-		]
+            }
+        ]
     );
     
     assert(
