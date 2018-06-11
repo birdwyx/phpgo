@@ -119,6 +119,12 @@ ZEND_END_MODULE_GLOBALS(phpgo)
 #define PHPGO_G(v) (phpgo_globals.v)
 #endif
 
+
+/*debug functions*/
+void     phpgo_hex_dump(void* buff, size_t n);
+void     phpgo_zval_dump(zval* zv);
+void     phpgo_var_dump(zval* zv);
+
 #endif	/* PHP_PHPGO_H */
 
 

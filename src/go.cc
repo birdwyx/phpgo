@@ -68,101 +68,35 @@ bool phpgo_initialize(){
 		
 		PHPGO_G(phpgo_initialized) = true;
 	}
+	
+	#ifdef __GNUC__
+	#pragma GCC diagnostic push
+	#pragma GCC diagnostic ignored "-Wwrite-strings"
+	#endif
+	PHP5_AND_BELOW(
+		zend_is_auto_global("_GET", sizeof("_GET")-1 TSRMLS_CC);
+		zend_is_auto_global("_POST", sizeof("_POST")-1 TSRMLS_CC);
+		zend_is_auto_global("_COOKIE", sizeof("_COOKIE")-1 TSRMLS_CC);
+		zend_is_auto_global("_SERVER", sizeof("_SERVER")-1 TSRMLS_CC);
+		zend_is_auto_global("_ENV", sizeof("_ENV")-1 TSRMLS_CC);
+		zend_is_auto_global("_FILES", sizeof("_FILES")-1 TSRMLS_CC);
+		zend_is_auto_global("_REQUEST", sizeof("_REQUEST")-1 TSRMLS_CC);
+	)
+	PHP7_AND_ABOVE(
+		zend_is_auto_global_str(ZEND_STRL("_GET"));
+		zend_is_auto_global_str(ZEND_STRL("_POST"));
+		zend_is_auto_global_str(ZEND_STRL("_COOKIE"));
+		zend_is_auto_global_str(ZEND_STRL("_SERVER"));
+		zend_is_auto_global_str(ZEND_STRL("_ENV"));
+		zend_is_auto_global_str(ZEND_STRL("_FILES"));
+		zend_is_auto_global_str(ZEND_STRL("_REQUEST"));
+	)
+	#ifdef __GNUC__
+	#pragma GCC diagnostic pop
+	#endif
+	
 	return true;
 }
-
-#if PHP_MAJOR_VERSION < 7 
-
-void dump(void* buff, size_t n){
-	int i = 0 ; 
-	unsigned char* b = (unsigned char*)buff;
-	while( i< (int)n ){
-		if(i%16 == 0 && i > 0) {
-			int j = i - 16;
-			if(j >= 0){
-				while(j < i){
-					unsigned char c =  isprint(b[j])? b[j] : '.';
-					php_printf("%c", c);
-					j++;
-				}
-			}
-			php_printf("\n");
-		}
-		php_printf("%02x ", b[i]);
-		i++;
-	}
-	php_printf("\n");
-}
-
-void dump_zval(zval* zv){
-	php_printf("zval %p------>\n", zv);
-	php_printf("type: %d\n", zv->type);
-	php_printf("refcount__gc: %d\n", zv->refcount__gc);
-	php_printf("is_ref__gc: %d\n", zv->is_ref__gc);
-	php_printf("value: \n");
-	dump(&(zv->value), sizeof(zv->value));
-	php_printf("handle: %x\n", zv->value.obj.handle);
-	php_printf("handlers: %x\n", zv->value.obj.handlers);
-	php_printf("<------\n");
-	//zv->refcount__gc = 3;
-}
-#else
-	void dump_zval(zval* zv){
-		const char* val_types[] = {
-			//0..10
-			"IS_UNDEF",
-			"IS_NULL",
-			"IS_FALSE",
-			"IS_TRUE",
-			"IS_LONG",
-			"IS_DOUBLE",
-			"IS_STRING",
-			"IS_ARRAY",
-			"IS_OBJECT",
-			"IS_RESOURCE",
-			"IS_REFERENCE",
-
-			"IS_CONSTANT",					//11
-			"IS_CONSTANT_AST",				//12
-			"_IS_BOOL",	                    //13
-			"IS_CALLABLE",					//14
-			"IS_INDIRECT",                  //15
-			"",
-			"IS_PTR",                       //17
-			"IS_VOID",						//18
-			"IS_ITERABLE",					//19
-			"_IS_ERROR"					    //20
-		};
-
-		php_printf("zval %p------>\n", zv);
-		php_printf("u1.v.type:                    %02x(%s)\n", zv->u1.v.type, val_types[zv->u1.v.type]);
-		php_printf("u1.v.type_flags:              %02x\n", zv->u1.v.type_flags);
-		//php_printf("u1.v.const_flags:             %02x\n", zv->u1.v.const_flags);
-		//php_printf("u1.v.reserved:                %02x\n", zv->u1.v.reserved);
-		php_printf("u1.v == u1.type_info ==:      %08x\n", zv->u1.type_info);
-		php_printf("u2:                           %08x\n", zv->u2.next);
-		php_printf("value:                        %016x\n", zv->value.lval);
-		
-		if( Z_REFCOUNTED_P(zv) ){
-			printf("value.counted->\n");
-			printf("    gc.refcount:              %08x\n", zv->value.counted->gc.refcount);
-			printf("    gc.u.v.type:              %02x\n", zv->value.counted->gc.u.v.type);
-			printf("    gc.u.v.flags:             %02x\n", zv->value.counted->gc.u.v.flags);
-			printf("    gc.u.v.gc_info:           %04x\n", zv->value.counted->gc.u.v.gc_info);
-			printf("    gc.u.type_info(==gc.u.v): %08x\n", zv->value.counted->gc.u.type_info);
-		}
-		
-		switch( Z_TYPE_P(zv) ){
-			case IS_STRING:
-				printf("    string(%d) = %s\n", zv->value.str->len, zv->value.str->val);
-				break;
-			case IS_REFERENCE:
-				printf("referece zval:\n");
-				dump_zval( &zv->value.ref->val);
-				break;
-		}
-	}
-#endif
 
 /*
 * explode the parameter array (args[1]) and append them to the args[]
@@ -279,7 +213,7 @@ bool phpgo_go(
 		parent_http_request_global
 		TSRMLS_CC
 	] ()mutable {
-		defer{
+		defer {
 			DELREF_HTTP_GLOBALS(parent_http_globals, parent_http_request_global);
 			
 			if(!EG_VM_STACK){
@@ -376,6 +310,7 @@ bool phpgo_go(
 			args[i] = *z_arg++;
 		}
 #endif
+		
 		auto param_count = 0;
 		if(argc > 1){
 			// args is now [$callable, $parameter_arr]
