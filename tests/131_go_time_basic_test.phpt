@@ -26,7 +26,7 @@ echo "verify sleep of 1 second : outside of go routine: ";
 $t = microtime(true);
 Time::sleep(Time::SECOND);
 $t1 = microtime(true);
-if ( $t1 - $t > 1.001 || $t1 - $t < 0.999 ){
+if ( $t1 - $t > 1.1 || $t1 - $t < 0.9 ){
 	echo "should sleep 1 second but slept " 
          . ( $t1-$t ) . " seconds\n";
 }else{

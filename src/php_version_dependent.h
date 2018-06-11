@@ -67,7 +67,7 @@
 	/*helpers to deal with the PHP5 and 7 
 	zend api differences*/
 	#define PHP5_AND_BELOW_ONLY_CC(x)
-	#define PHP5_VS_7(x,y)                                     (y)
+	#define PHP5_VS_7(x,y)                                     y
 	#define PHP7_AND_ABOVE(x)                                  x
 	#define PHP5_AND_BELOW(x)
 	
@@ -106,7 +106,7 @@
 
 	/*helpers to deal with the PHP5 and 7 zend api differences*/
 	#define PHP5_AND_BELOW_ONLY_CC(x)                          ,x
-	#define PHP5_VS_7(x,y)                                     (x)
+	#define PHP5_VS_7(x,y)                                     x
 	#define PHP7_AND_ABOVE(x)
 	#define PHP5_AND_BELOW(x)                                  x
 
