@@ -29,8 +29,8 @@ switch_type大小写不敏感。
 ##### array('case',  Chan $channel, \['->', \[mixed &$value\]\] |  \['<-', mixed $value\], Callable $callback)
 其中：  
 '->'操作符表示从通道$channel中读取数据到$value中，然后调用$callback($value), $value省略时，则从$channel读取数据到临时变量，并传入$callback中。$value不省略时，必须是引用参数。  
-'<-'操作符表示将$value写入到$channel中，写入后调用$callback($value)。此时$value不能省略。
-'<-','->'和$value都省略时，默认为读操作，即从$channel读取数据到临时变量，并传入$callback中
+'<-'操作符表示将$value写入到$channel中，写入后调用$callback($value)。此时$value不能省略。  
+'<-','->'和$value都省略时，默认为读操作，即从$channel读取数据到临时变量，并传入$callback中。
 
 >也就是说，总共有以下几种合法情形：
 >```
@@ -38,7 +38,7 @@ switch_type大小写不敏感。
 >select( ['case', $ch, '->', function($v){...} ], [...] );           //从$ch读取数据到临时变量，并传给function
 >select( ['case', $ch, function($v){...} ], [...] );                 //从$ch读取数据到临时变量，并传给function
 >
->select( ['case', $ch, '<-', $value, function($v){...} ], [...] );   //将$value写到$ch中，成功后将$value传给function
+>select( ['case', $ch, '<-', $value, function($v){...} ], [...] );   //将$value写到$ch中，然后将$value传给function
 >```
 
 #### 'default'分支
