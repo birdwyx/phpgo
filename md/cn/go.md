@@ -47,7 +47,7 @@ $parameters数组中的每个参数与$callback参数表里的参数依次匹配
 成功返回TURE，失败返回FALSE。
 
 ## 参见
-- [go](https://github.com/birdwyx/phpgo/blob/master/md/cn/go.md) — 创建go routine
+- [goo](https://github.com/birdwyx/phpgo/blob/master/md/cn/goo.md) — 创建go routine，支持可选参数
 
 ## 示例
 ### 1. Hello World
