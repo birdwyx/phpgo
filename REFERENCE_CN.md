@@ -50,9 +50,11 @@ extension=phpgo.so
 ```
 #### 2. 命令行方式
 ```
-export LD_PRELOAD=liblibgo.so; php my_app.php; export LD_PRELOAD=
+export LD_PRELOAD=liblibgo.so
+php my_app.php
+unset -v LD_PRELOAD
 ```
-注意在运行之前设置了环境变量LD_PRELOAD。这样做得原因是你可以通过LD_PRELOAD 让你的php代码及第三方扩展中的涉及I/O操作的同步函数调用（如redis、mysql数据读写，网络读写，以及sleep/usleep等）自动“异步化”，在协程供调用这些涉及IO操作的函数时，当前协程会自动切出，将执行权利让给其他协程。
+注意在运行之前设置了环境变量LD_PRELOAD。这样做得原因是你可以通过LD_PRELOAD 让你的php代码及第三方扩展中的涉及I/O操作的同步函数调用（如redis、mysql数据读写，网络读写，以及sleep/usleep等）自动“异步化”，在协程中调用这些涉及IO操作的函数时，当前协程会自动切出，将执行权利让给其他协程。
 
 当然你也可以选择不设置LD_PRELOAD，这样你的代码及第三方扩展中的同步I/O操作会维持同步，在这些操作完成前，其他协程，甚至是调度器，在该操作完成之前不会运行。
 
@@ -96,8 +98,8 @@ service php-fpm restart
 
 ## phpgo函数
 - [go](https://github.com/birdwyx/phpgo/blob/master/md/cn/go.md) — 创建go routine
-- [goo](https://github.com/birdwyx/phpgo/md/cn/goo.md) — 创建go routine，支持可选参数
-- [select](https://github.com/birdwyx/phpgo/md/cn/select.md) — 进行一次事件轮询，并返回一个Selector对象
+- [goo](https://github.com/birdwyx/phpgo/blob/master/md/cn/goo.md) — 创建go routine，支持可选参数
+- [select](https://github.com/birdwyx/phpgo/blob/master/md/cn/select.md) — 进行一次事件轮询，并返回一个Selector对象
 
 ## [go\Scheduler](https://github.com/birdwyx/phpgo/md/cn/scheduler.md) — go协程调度器类：Scheduler
 - [go\Scheduler::join](https://github.com/birdwyx/phpgo/md/cn/scheduler-join.md) — 运行协程调度器直到所有协程运行完成
