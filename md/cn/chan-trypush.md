@@ -27,7 +27,7 @@ go(function() use($ch){
     echo "Alice sends a greeting\n";
     while(true){
         $ok = $ch->tryPush("Greeting from Alice\n");
-        if($ok) break;
+        if($ok || $ok===NULL) break;
         Runtime::Gosched();
     }
 });
