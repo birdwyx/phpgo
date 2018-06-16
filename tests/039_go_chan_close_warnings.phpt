@@ -28,12 +28,12 @@ function passtc($seq, $cond){
 }
 
 //======>
-subtc(1, "chan close test - ensure warning generated while pushing to closed channel and false returned");
+subtc(1, "chan close test - ensure warning generated while pushing to closed channel and NULL returned");
 $ch1 = new Chan(0);
 
 go(function($ch){
 	$res = $ch->push("push#1");
-	my_assert(1, $res===false);
+	my_assert(1, $res===null);
 },[$ch1]);
 $ch1->close();
 
