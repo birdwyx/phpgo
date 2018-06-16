@@ -12,17 +12,17 @@ phpgo: A php extension that brings into php the go core features:
 - go routine scheduler
 
 phpgo also brings in a break-through feature which: 
-- automatically coverts the synchronized function calls in the php extensions (e.g. PDO, redis... etc) into asynchronized 
+- automatically converts the synchronized function calls in the php extensions (e.g. PDO, redis... etc) into asynchronized 
 
 This allows the swithing of execution to another go routine if one go routine is blocked by blocking I/O, thus provides hundred to thousand times of concurrent executions under the same running environment
 
 phpgo can be used under both CLI mode and fast-cgi (php-fpm) mode
 
-phpgo supports php5.5 to 7.2 on linux as of today
+phpgo supports php5.4 to 7.2 on linux as of today
 
 # 0. Reference Manuals
-### [Phpgo中文参考手册](https://github.com/birdwyx/phpgo/REFERENCE_CN.md) 
-### [Phpgo Reference Manual](https://github.com/birdwyx/phpgo/REFERENCE_EN.md)
+### [Phpgo中文参考手册](https://github.com/birdwyx/phpgo/blob/master/REFERENCE_CN.md) 
+### [Phpgo Reference Manual](https://github.com/birdwyx/phpgo/blob/master/REFERENCE_EN.md)
 
 # 1. Getting started
 ## 1.1. Install libgo
@@ -38,34 +38,34 @@ The phpgo relies on the the libgo library (thanks libgo!) to provide the underly
 
 steps to install the libgo:
 ```
-#git clone https://github.com/yyzybb537/libgo
-#cd libgo
-#git checkout master
-#mkdir build
-#cd build
-#rm -rf *
-#cmake ..
-#make
-#make install
-#ldconfig
+git clone https://github.com/yyzybb537/libgo
+cd libgo
+git checkout master
+mkdir build
+cd build
+rm -rf *
+cmake ..
+make
+make install
+ldconfig
 ```
 
 ## 1.2. Build phpgo from source - supported on linux OS 
 steps to build phpgo:
 ```
-#git clone https://github.com/birdwyx/phpgo
-#cd phpgo
-#phpize
-#./configure -with-php-config=<the path to php-config>
-#make
-#make install
+git clone https://github.com/birdwyx/phpgo
+cd phpgo
+phpize
+./configure -with-php-config=<the path to php-config>
+make
+make install
 ```
 
 >you may probably want to do a test first to ensure everything is fine before start using phpgo
 >```
->#cd phpgo
->#export TEST_PHP_EXECUTABLE=./test_php
->#php run-tests.php tests
+>cd phpgo
+>export TEST_PHP_EXECUTABLE=./test_php
+>php run-tests.php tests
 >```
 >ensure there are no FAIL'ed test cases
 

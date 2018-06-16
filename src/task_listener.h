@@ -1,8 +1,11 @@
 #pragma once
+#include "php_phpgo.h"
 #include "phpgo_context.h"
 
 using namespace co;
-	
+
+ZEND_EXTERN_MODULE_GLOBALS(phpgo)
+
 class PhpgoTaskListener : public Scheduler::TaskListener{
 	
 	// the go routine sepecific EG's are stored in task local storage
@@ -84,13 +87,6 @@ public:
 		if(!ctx) return;
 		
 		ctx->SetFinished(true);
-		//TaskLocalStorage::FreeSpecifics(task_id);
-		
-		PhpgoSchedulerContext* sched_ctx = &scheduler_ctx;
-		if( g_Scheduler.TaskCount() == 1){
-			// the last task is finishing, tell scheduler
-			sched_ctx->SetAllGoRoutinesFinished();
-		}
 	}
 };
 

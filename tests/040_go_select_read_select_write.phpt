@@ -48,7 +48,7 @@ go(function() use($ch){
 				}
 			]
 		);
-		if($i>20) break;
+		if($i>=20) break;
 		$i++;
 		usleep(100);
 	}
@@ -80,7 +80,7 @@ go(function() use($ch){
 				}
 			]
 		);
-		if($i>20) break;
+		if($i>=20) break;
 		$i++;
 		usleep(100);
 	}
@@ -111,7 +111,7 @@ go(function() use($ch){
 				}
 			]
 		);
-		if($i>20) break;
+		if($i>=20) break;
 		$i++;
 		usleep(100);
 	}

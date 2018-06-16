@@ -26,7 +26,7 @@ echo "verify sleep of 1 second : outside of go routine: ";
 $t = microtime(true);
 Time::sleep(Time::SECOND);
 $t1 = microtime(true);
-if ( $t1 - $t > 1.001 || $t1 - $t < 0.999 ){
+if ( $t1 - $t > 1.1 || $t1 - $t < 0.9 ){
 	echo "should sleep 1 second but slept " 
          . ( $t1-$t ) . " seconds\n";
 }else{
@@ -93,7 +93,7 @@ go(function (){  //go 1
 			
 			Time::sleep(10 * Time::MILLISECOND); // = usleep(10*1000);
 			
-			if( time()-$time0 > ($c+100) / 1000 ) {
+			if( time()-$time0 > ($c+1000) / 1000 ) {
 				echo "timer should expire at ". ($c/1000) .
 				     " seconds but expired at " . (time()-$time0) . 
 					 " seconds\n"; 

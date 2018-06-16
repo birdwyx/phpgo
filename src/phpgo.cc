@@ -48,6 +48,7 @@ we'll also have function go defined later on in this file*/
 #include "go_select.h"
 #include "zend_interfaces.h"
 #include "defer.h"
+#include "phpgo_context.h"
 
 
 /* If you declare any globals in php_phpgo.h uncomment this:*/
@@ -202,6 +203,114 @@ zend_module_entry phpgo_module_entry = {
 ZEND_GET_MODULE(phpgo)
 #endif
 
+/* {{{ phpgo debug functions
+ */
+ 
+void phpgo_hex_dump(void* buff, size_t n){
+	int i = 0 ; 
+	unsigned char* b = (unsigned char*)buff;
+	while( i< (int)n ){
+		if(i%16 == 0 && i > 0) {
+			int j = i - 16;
+			if(j >= 0){
+				while(j < i){
+					unsigned char c =  isprint(b[j])? b[j] : '.';
+					php_printf("%c", c);
+					j++;
+				}
+			}
+			php_printf("\n");
+		}
+		php_printf("%02x ", b[i]);
+		i++;
+	}
+	php_printf("\n");
+}
+
+#if PHP_MAJOR_VERSION < 7 
+	void phpgo_zval_dump(zval* zv){
+		php_printf("zval %p------>\n", zv);
+		php_printf("type: %d\n", zv->type);
+		php_printf("refcount__gc: %d\n", zv->refcount__gc);
+		php_printf("is_ref__gc: %d\n", zv->is_ref__gc);
+		php_printf("value: \n");
+		phpgo_hex_dump(&(zv->value), sizeof(zv->value));
+		php_printf("handle: %x\n", zv->value.obj.handle);
+		php_printf("handlers: %x\n", zv->value.obj.handlers);
+		php_printf("<------\n");
+		//zv->refcount__gc = 3;
+	}
+#else
+	void phpgo_zval_dump(zval* zv){
+		const char* val_types[] = {
+			//0..10
+			"IS_UNDEF",
+			"IS_NULL",
+			"IS_FALSE",
+			"IS_TRUE",
+			"IS_LONG",
+			"IS_DOUBLE",
+			"IS_STRING",
+			"IS_ARRAY",
+			"IS_OBJECT",
+			"IS_RESOURCE",
+			"IS_REFERENCE",
+
+			"IS_CONSTANT",					//11
+			"IS_CONSTANT_AST",				//12
+			"_IS_BOOL",	                    //13
+			"IS_CALLABLE",					//14
+			"IS_INDIRECT",                  //15
+			"",
+			"IS_PTR",                       //17
+			"IS_VOID",						//18
+			"IS_ITERABLE",					//19
+			"_IS_ERROR"					    //20
+		};
+
+		php_printf("zval %p------>\n", zv);
+		php_printf("u1.v.type:                    %02x(%s)\n", zv->u1.v.type, val_types[zv->u1.v.type]);
+		php_printf("u1.v.type_flags:              %02x\n", zv->u1.v.type_flags);
+		//php_printf("u1.v.const_flags:             %02x\n", zv->u1.v.const_flags);
+		//php_printf("u1.v.reserved:                %02x\n", zv->u1.v.reserved);
+		php_printf("u1.v == u1.type_info ==:      %08x\n", zv->u1.type_info);
+		php_printf("u2:                           %08x\n", zv->u2.next);
+		php_printf("value:                        %016x\n", zv->value.lval);
+		
+		if( Z_REFCOUNTED_P(zv) ){
+			php_printf("value.counted->\n");
+			php_printf("    gc.refcount:              %08x\n", zv->value.counted->gc.refcount);
+			php_printf("    gc.u.v.type:              %02x\n", zv->value.counted->gc.u.v.type);
+			php_printf("    gc.u.v.flags:             %02x\n", zv->value.counted->gc.u.v.flags);
+			php_printf("    gc.u.v.gc_info:           %04x\n", zv->value.counted->gc.u.v.gc_info);
+			php_printf("    gc.u.type_info(==gc.u.v): %08x\n", zv->value.counted->gc.u.type_info);
+		}
+		
+		switch( Z_TYPE_P(zv) ){
+			case IS_STRING:
+				php_printf("    string(%d) = %s\n", zv->value.str->len, zv->value.str->val);
+				break;
+			case IS_REFERENCE:
+				php_printf("referece zval:\n");
+				phpgo_zval_dump( &zv->value.ref->val);
+				break;
+		}
+	}
+	
+	void phpgo_var_dump(zval* zv){
+		zval func_name, retval;
+		ZVAL_STR(&func_name, zend_string_init("var_dump", sizeof("var_dump") - 1, 0));
+		if (Z_REFCOUNTED_P(zv)){
+			php_printf("&%d:", zval_refcount_p(zv));
+		}
+		assert(call_user_function(&EG(function_table), NULL, &func_name, &retval, 1, zv) == SUCCESS);
+		zval_ptr_dtor(&func_name);
+		zval_ptr_dtor(&retval);
+	}
+	
+#endif
+/* }}} */
+
 /* {{{ PHP_INI
  */
 /* Remove comments and fill if you need to have entries in php.ini
@@ -289,6 +398,13 @@ PHP_RINIT_FUNCTION(phpgo)
  */
 PHP_RSHUTDOWN_FUNCTION(phpgo)
 {
+	/*
+	need to cleanup the scheduler_ctx earlier here instead of in the 
+	scheduler_ctx destructor, since php (debug mode) will report memleaks
+	and free memory on behave ealier than the C++ destructors
+	*/
+	scheduler_ctx.Cleanup();
+	
 	return SUCCESS;
 }
 /* }}} */
@@ -417,6 +533,7 @@ PHP_MINFO_FUNCTION(phpgo)
 	
 	if( rc==GoChan::RCode::channel_closed ){
 		zend_error(E_WARNING, "phpgo: Chan::push(): try to push to an allready closed channel");
+		RETURN_NULL();
 	}
 	
 	RETURN_BOOL( rc==GoChan::RCode::success );
@@ -450,6 +567,7 @@ PHP_MINFO_FUNCTION(phpgo)
 	
 	if( rc==GoChan::RCode::channel_closed ){
 		zend_error(E_WARNING, "phpgo: Chan::tryPush(): try to push to an allready closed channel");
+		RETURN_NULL();
 	}
 	
 	RETURN_BOOL( rc==GoChan::RCode::success );

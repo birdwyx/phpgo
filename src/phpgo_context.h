@@ -69,7 +69,8 @@ do{ \
 		zval_ptr_dtor( &(http_request_global) ); \
 		if(pz_arr){ \
 			ZVAL_COPY_VALUE( &(http_request_global), pz_arr ); \
-			Z_ADDREF_P(pz_arr); \
+			if( Z_TYPE_P(pz_arr) != IS_NULL ) \
+				Z_ADDREF_P(pz_arr); \
 		}else{ \
 			ZVAL_NULL( &(http_request_global) ); \
 		} \
@@ -114,7 +115,8 @@ do{ \
 			&EG(symbol_table), "_REQUEST", sizeof("_REQUEST"), \
 			&tmp, sizeof(zval *), NULL \
 		); \
-		Z_ADDREF_P( &(http_request_global) ); \
+		if( Z_TYPE_P(&(http_request_global)) != IS_NULL ) \
+			Z_ADDREF_P( &(http_request_global) ); \
 	) \
 }while(0)
 	
@@ -211,6 +213,7 @@ do{ \
 
 struct PhpgoBaseContext{
 	uint64_t                   task_id;
+	bool                       http_globals_cleanup_required;
 
 #if PHP_MAJOR_VERSION < 7
 	/*go routine running environment*/
@@ -261,6 +264,7 @@ protected:
 		
 		if(include_http_globals){
 			GET_HTTP_GLOBALS(this->PG_http_globals, this->http_request_global);
+			http_globals_cleanup_required = true;
 		}
 
 		/* save the current EG  */    
@@ -315,6 +319,13 @@ protected:
 			SET_HTTP_GLOBALS(this->PG_http_globals, this->http_request_global);  		
 		}
 	}
+
+public:
+	inline void Cleanup(){
+		if (this->http_globals_cleanup_required) {
+			DELREF_HTTP_GLOBALS(this->PG_http_globals, this->http_request_global);
+		}
+	}
 };
 
 struct PhpgoContext : public PhpgoBaseContext, public FreeableImpl{
@@ -339,12 +350,7 @@ public:
 		// the coroutine ( not the scheduler ) is finished 
 		// free the task local storage (including this context itself)
 		if(this->go_routine_finished) {
-			if( this->go_routine_options & GoRoutineOptions::gro_isolate_http_globals ){
-				DELREF_HTTP_GLOBALS(this->PG_http_globals, this->http_request_global);
-			}
-			
-			// should be last sentence as this will free the context itself
-			TaskLocalStorage::FreeSpecifics(this->task_id);
+			this->Cleanup();
 		}
 	}
 		
@@ -355,6 +361,12 @@ public:
 	inline void SetFinished(bool finished){
 		this->go_routine_finished = finished;
 	}
+	
+	inline void Cleanup(){
+		PhpgoBaseContext::Cleanup();	
+		// should be last sentence as this will free the context itself
+		TaskLocalStorage::FreeSpecifics(this->task_id);
+	}
 };
 
 // the Scheduler Context is essentially the same as the Task's context,
@@ -362,40 +374,25 @@ public:
 // have virtual members, we have to remove the FreeableImpl from the
 // Scheduler Context...
 struct PhpgoSchedulerContext : public PhpgoBaseContext{
-public:
-	bool all_go_routines_finished;
-	
+public:	
 	PhpgoSchedulerContext(){
+		this->task_id = 0;
+		
 #if PHP_MAJOR_VERSION < 7
 		TSRMLS_FETCH();                     // void ***tsrm_ls = (void ***) ts_resource_ex(0, NULL)
 		TSRMLS_SET_CTX(this->TSRMLS_C);     // this->tsrm_ls = (void ***) tsrm_ls
-#else
 #endif
-		this->task_id = 0;
-		this->all_go_routines_finished = true;
 	}
 	
 	inline void SwapOut(bool include_http_globals){
 		PhpgoBaseContext::SwapOut(include_http_globals);
-		SetAllGoRoutinesFinished(false);
 	}
 		
 	inline void SwapIn(bool include_http_globals){
 		PhpgoBaseContext::SwapIn(include_http_globals);
-		
-		if(include_http_globals && all_go_routines_finished){
-			// all tasks completed
-			DELREF_HTTP_GLOBALS(this->PG_http_globals, this->http_request_global);
-		}
-	}
-	
-	inline void SetAllGoRoutinesFinished(bool finished = true){
-		this->all_go_routines_finished = finished;
 	}
 };
 
 // the scheduler may be executed in multiple thread: 
 // use thread local variable to store the scheduler EG's	
-static thread_local PhpgoSchedulerContext scheduler_ctx;
-
-
+extern thread_local PhpgoSchedulerContext scheduler_ctx;

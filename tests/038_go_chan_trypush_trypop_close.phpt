@@ -67,12 +67,12 @@ passtc(2, true);
 
 //===>
 
-subtc(3, "chan close test - ensure warning generated while tryPushing to closed channel and false returned");
+subtc(3, "chan close test - ensure warning generated while tryPushing to closed channel and NULL returned");
 $ch1 = new Chan(0);
 
 go(function($ch){
 	@$res = $ch->tryPush("push#1");
-	my_assert(3, $res===false);
+	my_assert(3, $res===null);
 },[$ch1]);
 $ch1->close();
 
@@ -140,7 +140,7 @@ SUB-TC #1: tryPush tryPop test
 SUB-TC #1: PASS
 SUB-TC #2: chan close test - ensure data can be read from close channel if available
 SUB-TC #2: PASS
-SUB-TC #3: chan close test - ensure warning generated while tryPushing to closed channel and false returned
+SUB-TC #3: chan close test - ensure warning generated while tryPushing to closed channel and NULL returned
 SUB-TC #3: PASS
 SUB-TC #4: chan close test - ensure data can be tryPop from close channel if available
 SUB-TC #4: PASS
