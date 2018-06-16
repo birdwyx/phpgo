@@ -40,12 +40,12 @@ $ch1->close();
 Scheduler::join();
 passtc(1, true);
 
-subtc(2, "chan close test - ensure warning generated while tryPushing to closed channel and false returned");
+subtc(2, "chan close test - ensure warning generated while tryPushing to closed channel and NULL returned");
 $ch1 = new Chan(0);
 
 go(function($ch){
 	$res = $ch->tryPush("push#1");
-	my_assert(2, $res===false);
+	my_assert(2, $res===null);
 },[$ch1]);
 $ch1->close();
 
