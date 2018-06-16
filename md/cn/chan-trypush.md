@@ -20,7 +20,6 @@ tryPush — 尝试在管道尾部添加一条数据
 ```
 <?php
 use go\Chan;
-use go\Scheduler;
 use go\Runtime;
 
 $ch = new Chan(1);
@@ -28,10 +27,9 @@ go(function() use($ch){
     echo "Alice sends a greeting\n";
     while(true){
         $ok = $ch->tryPush("Greeting from Alice\n");
-        if($ok || $ok===NULL) break;  //data pushed, or channel closed
+        if($ok) break;
         Runtime::Gosched();
     }
-    $ch->push("Greeting from Alice\n");
 });
 
 $message=$ch->pop();
