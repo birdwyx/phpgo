@@ -6,10 +6,10 @@ tryPush — 尝试在管道尾部添加一条数据
 
 ## 说明
 #### mixed tryPush()  
-在管道尾部添加一条数据
+尝试在管道尾部添加一条数据
 
 ## 返回值
-如果成功则返回TRUE，如果管道已满、管道关闭或出错则返回FALSE
+如果成功则返回TRUE，如果管道已满或出错则返回FALSE，如果管道关闭则返回NULL
 
 ## 参见
 - [go\Chan::push](https://github.com/birdwyx/phpgo/blob/master/md/cn/chan-push.md) — 在管道尾部添加一条数据
@@ -28,7 +28,7 @@ go(function() use($ch){
     echo "Alice sends a greeting\n";
     while(true){
         $ok = $ch->tryPush("Greeting from Alice\n");
-        if($ok) break;
+        if($ok || $ok===NULL) break;  //data pushed, or channel closed
         Runtime::Gosched();
     }
     $ch->push("Greeting from Alice\n");
