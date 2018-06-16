@@ -41,7 +41,8 @@ go(function() use($ch){
 
 Scheduler::join();
 ```
-输出go 1 try to read之后程序挂起：
+输出go 2 close channel之后程序挂起：
 ```
 go 1 try to read
+go 2 close channel
 ```
