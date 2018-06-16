@@ -16,12 +16,9 @@ close — 关闭管道
 ## 返回值
 成功则返回TRUE，失败则返回FALSE。
 
-## 参见
-- [go\Chan::pop](https://github.com/birdwyx/phpgo/blob/master/md/cn/chan-pop.md) — 从管道头部读取一条数据
-- [go\Chan::push](https://github.com/birdwyx/phpgo/blob/master/md/cn/chan-push.md) — 向管道尾部添加一条数据
 
 ## 示例
-### 1. 使用channel和go routine通信
+### 1. 读写关闭的管道
 ```
 <?php
 use go\Chan;
@@ -29,15 +26,22 @@ use go\Scheduler;
 
 $ch = new Chan(1);
 go(function() use($ch){
-    echo "Alice sends a greeting\n";
-    $ch->push("Greeting from Alice\n");
+    echo "go 1 try to read\n";
+    $data = $ch->pop();
+    echo "data read in go 1:"; var_dump($data);
 });
 
-$message = $ch->pop();
-echo $message;
+go(function() use($ch){
+    sleep(1);
+    echo "go 2 close channel\n";
+    $data = $ch->close();
+});
+
+Scheduler::join();
 ```
 输出：
 ```
-Alice sends a greeting
-Greeting from Alice
+go 1 try to read
+go 2 close channel
+data read in go 1:
 ```
