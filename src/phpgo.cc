@@ -566,6 +566,7 @@ PHP_MINFO_FUNCTION(phpgo)
 	
 	if( rc==GoChan::RCode::channel_closed ){
 		zend_error(E_WARNING, "phpgo: Chan::tryPush(): try to push to an allready closed channel");
+		RETURN_NULL();
 	}
 	
 	RETURN_BOOL( rc==GoChan::RCode::success );
