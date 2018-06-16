@@ -44,7 +44,7 @@ switch_type大小写不敏感。
 #### 'default'分支
 语法如下：
 ##### array('default', Callable $callback)
-select轮询所有分支，随机选择一个可读写的'case'分支来执行，如果所有'case'分支都不可读或写，则select执行'default'分支的回调函数$callback，不传入参数。如果连'default'分支都没有，则select阻塞直到任意'case'分支可读写。  
+select轮询所有分支，随机选择一个可读写的'case'分支来执行，如果所有'case'分支都不可读或写，则select执行'default'分支的回调函数$callback，不传入参数。  
 >例如，以下案例在各个case分支没有读写操作可进行的时候，等待一秒钟：
 >```
 >select(
@@ -103,3 +103,129 @@ Scheduler::join();
 ```
 success
 ```
+
+
+### 2. 生产者与消费者
+```
+<?php
+use \Go\Chan;
+use \Go\Scheduler;
+use \Go\Time;
+
+function write_data($ch, $data){
+    $data_written = new Chan(0);
+    
+    // try to write data to the channel, if the channel is not available to write, wait a 50ms
+    // loop until the data is successfully written
+    select(
+        [
+            'case', $ch, "<-", $data, function($value) use($data_written){
+                echo "data written:";
+                var_dump($value);
+                $data_written->close();
+            }
+        ],
+        [
+            'default', function(){
+                echo "channel full, wait 50ms for consumer to consume\n";
+                Time::sleep(50*1000*1000);
+            }
+        ]
+    )->loop($data_written);
+}
+
+function producer($ch, $close){
+    select(
+        [
+            'default', function() use($ch){
+                $data = rand();
+                write_data($ch, $data);
+            }
+        ]
+    )->loop($close);
+}
+
+function consumer($ch, $close){
+    select(
+        [
+            'case', $ch, function($value) {
+                echo "data consumed:";
+                var_dump($value);
+                
+                // wait a 10ms: simulating a slow consumer:
+                // just to see the output from producer:
+                // "channel full, wait 50ms for consumer to consume"
+                Time::sleep(10*1000*1000);
+            }
+        ]
+    )->loop($close);
+}
+
+// main routine
+go( function(){
+    $ch = new Chan(["capacity"=>20]); 
+    $close = new Chan(0);
+    go('producer', [$ch, $close]);
+    go('consumer', [$ch, $close]);
+    
+    // tell producer and consumer to exit after 10 seconds
+    // note: Time::sleep follows go convension: time unit in nano-second 
+    // please note the difference with php sleep() witch has time unit in seconds
+    Time::sleep(10* 1000*1000*1000); 
+    $close->close();
+});
+
+Scheduler::join();
+```
+输出:
+```
+...
+data written:int(1848193587)
+data consumed:int(1848193587)
+data written:int(1572420815)
+data written:int(1142275719)
+data written:int(761289258)
+data written:int(251548635)
+data written:int(695961973)
+data written:int(1035384689)
+data written:int(1090100059)
+data written:int(220684829)
+data written:int(1971664342)
+data written:int(1672374281)
+data written:int(1560995315)
+data written:int(1982880169)
+data written:int(1726045443)
+data written:int(390291502)
+data written:int(1979133962)
+data written:int(162498409)
+data written:int(1624140423)
+data written:int(856873465)
+data written:int(1547478199)
+data written:int(881099376)
+channel full, wait 50ms for consumer to consume
+data consumed:int(1572420815)
+data consumed:int(1142275719)
+data consumed:int(761289258)
+data consumed:int(251548635)
+data consumed:int(695961973)
+data written:int(215756702)
+data written:int(1076793154)
+data written:int(53161470)
+data written:int(591741440)
+data written:int(2144247704)
+channel full, wait 50ms for consumer to consume
+data consumed:int(1035384689)
+data consumed:int(1090100059)
+data consumed:int(220684829)
+data consumed:int(1971664342)
+data consumed:int(1672374281)
+data written:int(321058344)
+...
+```
+上例是经典的生产者消费者场景：生产者生产并写入数据，消费者读取并处理数据，以channel为缓冲区。
+- 主过程生成一个20缓冲项的channel，传给producer和consumer；
+- producer()生成随机数，并持续调用write_data将数据写入缓冲区$ch，直到收到退出信号；  
+>如果缓冲区$ch满了，write_data会等50ms重试，一直到缓冲区有空了，成功写入数据才返回。  
+- consumer()从$ch读取并打印出读取的值，直到收到退出信号。
+
+退出信号即$close被关闭：select()返回一个Selector对象，通过调用Selector::loop($close)循环执行select中的case直到$close中有值或者$close被关闭，更多信息参见[Selector::Loop()](https://github.com/birdwyx/phpgo/blob/master/md/cn/selector-loop.md)）。  
