@@ -26,7 +26,7 @@ $ch = new Chan($create_opptions);
 
 #### capacity
 
-当__construct第一个参数为整数时，代表最大容量。例如：
+当__construct第一个参数为整数时，代表最大容量。例如以下语句创建容量为10的管道：
 ````
 $ch = new Chan(10);
 ````
