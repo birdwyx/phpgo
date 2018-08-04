@@ -189,6 +189,7 @@ do{ \
 #define PHPGO_INITIALIZE_RUNNING_ENVIRONMENT()           \
 {                                                                  \
 	EG(current_execute_data )   =  NULL;                           \
+	EG(bailout )                =  NULL;                           \
 	EG(argument_stack       )   =  NULL;                           \
 	EG(scope                )   =  NULL;                           \
 	EG(This                 )   =  NULL;                           \
@@ -205,6 +206,7 @@ do{ \
 #define PHPGO_INITIALIZE_RUNNING_ENVIRONMENT()           \
 {                                                                  \
 	EG(current_execute_data )   =  NULL;                           \
+	EG(bailout              )   =  NULL;                           \
 	EG(vm_stack             )   =  NULL;                           \
 	EG(vm_stack_top         )   =  NULL;                           \
 	EG(vm_stack_end         )   =  NULL;                           \
@@ -217,8 +219,9 @@ struct PhpgoBaseContext{
 
 #if PHP_MAJOR_VERSION < 7
 	/*go routine running environment*/
-	struct _zend_execute_data* EG_current_execute_data; 
-	zend_vm_stack 			   EG_argument_stack;       
+	struct _zend_execute_data* EG_current_execute_data;
+	JMP_BUF*                   EG_bailout;
+	zend_vm_stack 			   EG_argument_stack;
 	zend_class_entry*		   EG_scope;                
 	zval*					   EG_This;                 
 	zend_class_entry*		   EG_called_scope;         
@@ -236,7 +239,8 @@ struct PhpgoBaseContext{
 	TSRMLS_FIELD;  /*ZTS: void ***tsrm_ls;*/
 #else 
 	/* php7 */
-	struct _zend_execute_data* EG_current_execute_data; 
+	struct _zend_execute_data* EG_current_execute_data;
+	JMP_BUF*                   EG_bailout;
 	zend_vm_stack			   EG_vm_stack;
     zval*                      EG_vm_stack_top;
     zval*                      EG_vm_stack_end;
@@ -269,6 +273,7 @@ protected:
 
 		/* save the current EG  */    
 		this->EG_current_execute_data  =  EG(current_execute_data    ); 
+		this->EG_bailout               =  EG(bailout                 ); 
 #if PHP_MAJOR_VERSION < 7
 		this->EG_argument_stack        =  EG(argument_stack          ); 
 		this->EG_scope                 =  EG(scope                   ); 
@@ -296,6 +301,7 @@ protected:
 		
 		/* load EG from the task specific context*/                            
 		EG(current_execute_data )   =  this->EG_current_execute_data;
+		EG(bailout              )   =  this->EG_bailout             ;
 #if PHP_MAJOR_VERSION < 7
 		EG(argument_stack       )   =  this->EG_argument_stack      ; 
 		EG(scope                )   =  this->EG_scope               ; 

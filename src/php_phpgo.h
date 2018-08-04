@@ -61,6 +61,7 @@ PHP_METHOD(Scheduler, Loop);
 PHP_METHOD(Runtime,   NumGoroutine);
 PHP_METHOD(Runtime,   Gosched);
 PHP_METHOD(Runtime,   Goid);
+PHP_METHOD(Runtime,   Quit);
 
 PHP_METHOD(Chan,      __construct);
 PHP_METHOD(Chan,      Push);
