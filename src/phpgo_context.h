@@ -214,13 +214,14 @@ do{ \
 #endif
 
 struct PhpgoBaseContext{
+	uint64_t                   guard__[4];
 	uint64_t                   task_id;
 	bool                       http_globals_cleanup_required;
 
+	struct _zend_execute_data* EG_current_execute_data;
+
 #if PHP_MAJOR_VERSION < 7
 	/*go routine running environment*/
-	struct _zend_execute_data* EG_current_execute_data;
-	JMP_BUF*                   EG_bailout;
 	zend_vm_stack 			   EG_argument_stack;
 	zend_class_entry*		   EG_scope;                
 	zval*					   EG_This;                 
@@ -239,8 +240,6 @@ struct PhpgoBaseContext{
 	TSRMLS_FIELD;  /*ZTS: void ***tsrm_ls;*/
 #else 
 	/* php7 */
-	struct _zend_execute_data* EG_current_execute_data;
-	JMP_BUF*                   EG_bailout;
 	zend_vm_stack			   EG_vm_stack;
     zval*                      EG_vm_stack_top;
     zval*                      EG_vm_stack_end;
@@ -248,9 +247,15 @@ struct PhpgoBaseContext{
 	zval                       PG_http_globals[NUM_TRACK_VARS];
 	zval                       http_request_global;
 #endif
+
+	JMP_BUF*                   EG_bailout;
+
+	uint64_t                   __guard[4];
 	/**/
 	PhpgoBaseContext(){
 		bzero(this, sizeof(*this));
+		memset(guard__, 0xcc, sizeof(guard__));
+		memset(__guard, 0xcc, sizeof(__guard));
 		
 		PHP7_AND_ABOVE(
 			for(int i=0; i< NUM_TRACK_VARS; i++)
@@ -272,8 +277,8 @@ protected:
 		}
 
 		/* save the current EG  */    
-		this->EG_current_execute_data  =  EG(current_execute_data    ); 
-		this->EG_bailout               =  EG(bailout                 ); 
+		this->EG_current_execute_data  =  EG(current_execute_data    );
+
 #if PHP_MAJOR_VERSION < 7
 		this->EG_argument_stack        =  EG(argument_stack          ); 
 		this->EG_scope                 =  EG(scope                   ); 
@@ -291,6 +296,8 @@ protected:
         this->EG_vm_stack_top          =  EG(vm_stack_top            );
 		this->EG_vm_stack_end          =  EG(vm_stack_end            );
 #endif
+
+		this->EG_bailout               =  EG(bailout                 );
 	}
 
 	inline void SwapIn(bool include_http_globals){
@@ -301,7 +308,7 @@ protected:
 		
 		/* load EG from the task specific context*/                            
 		EG(current_execute_data )   =  this->EG_current_execute_data;
-		EG(bailout              )   =  this->EG_bailout             ;
+
 #if PHP_MAJOR_VERSION < 7
 		EG(argument_stack       )   =  this->EG_argument_stack      ; 
 		EG(scope                )   =  this->EG_scope               ; 
@@ -319,6 +326,8 @@ protected:
 	    EG(vm_stack_top         )	=  this->EG_vm_stack_top        ;
 	    EG(vm_stack_end         )	=  this->EG_vm_stack_end        ;
 #endif
+
+		EG(bailout              )   =  this->EG_bailout             ;
 		
 		if(include_http_globals){			
 			REPLACE_PG_HTTP_GLOBALS_WITH(this->PG_http_globals);
