@@ -216,7 +216,7 @@ struct PhpgoBaseContext{
 	bool                       http_globals_cleanup_required;
 
 	struct _zend_execute_data* EG_current_execute_data;
-	char                       buffer[64];
+	uint64_t                   guard[8];
 #if PHP_MAJOR_VERSION < 7
 	/*go routine running environment*/
 	zend_vm_stack 			   EG_argument_stack;       
@@ -247,6 +247,7 @@ struct PhpgoBaseContext{
 	/**/
 	PhpgoBaseContext(){
 		bzero(this, sizeof(*this));
+		memset(guard, 0xcc, sizeof(guard));
 		
 		PHP7_AND_ABOVE(
 			for(int i=0; i< NUM_TRACK_VARS; i++)
@@ -286,6 +287,11 @@ protected:
         this->EG_vm_stack_top          =  EG(vm_stack_top            );
 		this->EG_vm_stack_end          =  EG(vm_stack_end            );
 #endif
+		for(int i=0; i<8; i++){
+			if (guard[i]!=0xcccccccc) {
+				printf("!!!: guard was overwritten! address: %p, value:%lx\n", &guard[i], guard[i]);
+			}
+		}
 	}
 
 	inline void SwapIn(bool include_http_globals){
@@ -317,6 +323,12 @@ protected:
 		if(include_http_globals){			
 			REPLACE_PG_HTTP_GLOBALS_WITH(this->PG_http_globals);
 			SET_HTTP_GLOBALS(this->PG_http_globals, this->http_request_global);  		
+		}
+
+		for(int i=0; i<8; i++){
+			if (guard[i]!=0xcccccccc) {
+				printf("!!!: guard was overwritten! address: %p, value:%lx\n", &guard[i], guard[i]);
+			}
 		}
 	}
 
