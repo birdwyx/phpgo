@@ -216,7 +216,7 @@ struct PhpgoBaseContext{
 	bool                       http_globals_cleanup_required;
 
 	struct _zend_execute_data* EG_current_execute_data;
-	JMP_BUF*                   EG_bailout;
+	void*                      EG_bailout;
 #if PHP_MAJOR_VERSION < 7
 	/*go routine running environment*/
 	zend_vm_stack 			   EG_argument_stack;       
