@@ -215,9 +215,10 @@ struct PhpgoBaseContext{
 	uint64_t                   task_id;
 	bool                       http_globals_cleanup_required;
 
+	struct _zend_execute_data* EG_current_execute_data;
+	JUMP_BUF*                  EG_jump_buf;
 #if PHP_MAJOR_VERSION < 7
 	/*go routine running environment*/
-	struct _zend_execute_data* EG_current_execute_data; 
 	zend_vm_stack 			   EG_argument_stack;       
 	zend_class_entry*		   EG_scope;                
 	zval*					   EG_This;                 
@@ -236,7 +237,6 @@ struct PhpgoBaseContext{
 	TSRMLS_FIELD;  /*ZTS: void ***tsrm_ls;*/
 #else 
 	/* php7 */
-	struct _zend_execute_data* EG_current_execute_data; 
 	zend_vm_stack			   EG_vm_stack;
     zval*                      EG_vm_stack_top;
     zval*                      EG_vm_stack_end;
