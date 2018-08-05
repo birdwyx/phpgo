@@ -214,7 +214,7 @@ do{ \
 #endif
 
 struct PhpgoBaseContext{
-	uint64_t                   guard__[4];
+	uint64_t                   guard__[8];
 	uint64_t                   task_id;
 	bool                       http_globals_cleanup_required;
 
@@ -250,7 +250,7 @@ struct PhpgoBaseContext{
 
 	JMP_BUF*                   EG_bailout;
 
-	uint64_t                   __guard[4];
+	uint64_t                   __guard[8];
 	/**/
 	PhpgoBaseContext(){
 		bzero(this, sizeof(*this));
