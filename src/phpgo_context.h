@@ -216,7 +216,7 @@ struct PhpgoBaseContext{
 	bool                       http_globals_cleanup_required;
 
 	struct _zend_execute_data* EG_current_execute_data;
-	uint64_t                   guard[8];
+	uint64_t                   guard[128];
 #if PHP_MAJOR_VERSION < 7
 	/*go routine running environment*/
 	zend_vm_stack 			   EG_argument_stack;       
@@ -287,7 +287,7 @@ protected:
         this->EG_vm_stack_top          =  EG(vm_stack_top            );
 		this->EG_vm_stack_end          =  EG(vm_stack_end            );
 #endif
-		for(int i=0; i<8; i++){
+		for(int i=0; i<128; i++){
 			if (guard[i]!=0xcccccccccccccccc) {
 				printf("!!!: guard was overwritten! address: %p, value:%lx\n", &guard[i], guard[i]);
 			}
@@ -325,7 +325,7 @@ protected:
 			SET_HTTP_GLOBALS(this->PG_http_globals, this->http_request_global);  		
 		}
 
-		for(int i=0; i<8; i++){
+		for(int i=0; i<128; i++){
 			if (guard[i]!=0xcccccccccccccccc) {
 				printf("!!!: guard was overwritten! address: %p, value:%lx\n", &guard[i], guard[i]);
 			}
