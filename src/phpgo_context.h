@@ -288,7 +288,7 @@ protected:
 		this->EG_vm_stack_end          =  EG(vm_stack_end            );
 #endif
 		for(int i=0; i<8; i++){
-			if (guard[i]!=0xcccccccc) {
+			if (guard[i]!=0xcccccccccccccccc) {
 				printf("!!!: guard was overwritten! address: %p, value:%lx\n", &guard[i], guard[i]);
 			}
 		}
@@ -326,7 +326,7 @@ protected:
 		}
 
 		for(int i=0; i<8; i++){
-			if (guard[i]!=0xcccccccc) {
+			if (guard[i]!=0xcccccccccccccccc) {
 				printf("!!!: guard was overwritten! address: %p, value:%lx\n", &guard[i], guard[i]);
 			}
 		}
