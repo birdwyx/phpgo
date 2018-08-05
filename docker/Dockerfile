@@ -5,7 +5,7 @@ MAINTAINER michaelwei <4275556@qq.com>
 ENV PHP_INSTALL_DIR /usr/local/php
 ENV PHP_INI_DIR $PHP_INSTALL_DIR/etc
 ENV MCRYPT_URL http://soft.vpser.net/web/libmcrypt/libmcrypt-2.5.8.tar.gz
-ENV SWOOLE_VERSION v2.0.12
+ENV SWOOLE_VERSION v2.2.0
 
 ENV PHP_CFLAGS="-fstack-protector-strong -fpic -fpie -O2"
 ENV PHP_CPPFLAGS="$PHP_CFLAGS"

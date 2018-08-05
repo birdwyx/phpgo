@@ -175,6 +175,7 @@ const zend_function_entry go_runtime_methods[] = {
 	PHP_ME(Runtime,        NumGoroutine, NULL,                     ZEND_ACC_PUBLIC|ZEND_ACC_STATIC)
 	PHP_ME(Runtime,        Gosched,      NULL,                     ZEND_ACC_PUBLIC|ZEND_ACC_STATIC)
 	PHP_ME(Runtime,        Goid,         NULL,                     ZEND_ACC_PUBLIC|ZEND_ACC_STATIC)
+	PHP_ME(Runtime,        Quit,         NULL,                     ZEND_ACC_PUBLIC|ZEND_ACC_STATIC)
 	PHP_FE_END	/* Must be the last line */
 };
 /* }}} */
@@ -1578,11 +1579,45 @@ PHP_METHOD(Runtime, Gosched)
 }
 /* }}} */
 
-/* {{{ proto void go_schedule_forever(void)
-   loop running the secheduler forever*/
+/* {{{ proto void Runtime::Goid(void)
+   return the go routine id*/
 PHP_METHOD(Runtime, Goid)
 {
 	RETURN_LONG( phpgo_go_runtime_goid() );
+}
+/* }}} */
+
+/* {{{ proto void Runtime::quit(int|string)
+   exit the program -- equivalent to the php exit/die*/
+PHP_METHOD(Runtime, Quit)
+{
+	if( !ZEND_NUM_ARGS() ){
+		goto bailout;
+	}
+
+	zval* exit_param;
+	if (zend_parse_parameters(ZEND_NUM_ARGS() TSRMLS_CC, "z", &exit_param) == FAILURE) {
+		zend_error(E_ERROR, "phpgo: Runtime::quit: getting parameter failure");
+		goto bailout;
+	}
+	
+	if (Z_TYPE_P(exit_param) == IS_LONG) {
+		EG(exit_status) = Z_LVAL_P(exit_param);
+	} else {
+		zend_print_variable(exit_param);
+	}
+
+bailout:
+	// this function is (typically) called in a go routine, in that case the EG(bailout)
+	// has been changed to the go routine local jump point
+	// we are now going to exit the program so we need to restore the EG(bailout) to the
+	// scheduler's and then jump to it
+	
+	PhpgoSchedulerContext* sched_ctx = &scheduler_ctx;
+	if (sched_ctx->EG_bailout)
+		EG(bailout) = sched_ctx->EG_bailout;
+
+	zend_bailout();
 }
 /* }}} */
 

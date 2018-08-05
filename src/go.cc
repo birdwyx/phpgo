@@ -360,21 +360,35 @@ bool phpgo_go(
 #endif
 			}
 		}
-		
-		PHP7_AND_ABOVE( PHPGO_MAKE_STD_ZVAL(return_value) ); 
-		if( call_user_function_ex(
-			EG(function_table), 
-			NULL, 
-			callback,                                  // the callback callable
-			PHP5_VS_7(&return_value, return_value),    // return value: php5: zval**, php7: zval*
-			param_count,                               // the parameter number required by the callback
-			param_count ? args + PARAMETER_ARRAY_POSITION + 1 : NULL,  // the parameter list of the callback
-			1, 
-			NULL TSRMLS_CC
-		) != SUCCESS) {
-			zend_error(E_ERROR, "phpgo: execution of go routine faild");
-			return;
-		}
+
+		zend_first_try {
+			PHP7_AND_ABOVE( PHPGO_MAKE_STD_ZVAL(return_value) ); 
+			if( call_user_function_ex(
+				EG(function_table), 
+				NULL, 
+				callback,                                  // the callback callable
+				PHP5_VS_7(&return_value, return_value),    // return value: php5: zval**, php7: zval*
+				param_count,                               // the parameter number required by the callback
+				param_count ? args + PARAMETER_ARRAY_POSITION + 1 : NULL,  // the parameter list of the callback
+				1, 
+				NULL TSRMLS_CC
+			) != SUCCESS) {
+				zend_error(E_ERROR, "phpgo: execution of go routine faild");
+				return;
+			}
+		} zend_catch {
+			//
+			// all exceptions, are terminated here. Exceptions can only bailout the go 
+			// routine itself
+			//
+			// it will also reach this point when an exit()/die() are called in the php code
+			// we are not expected to end the whole program under these conditions, now the 
+			// exit()/die() will only terminate the go routine itself
+			//
+			// to really end the program, call exit()/die() outside a go routine or use
+			// the Runtime::quit() inside/outside a go routine
+			//
+		} zend_end_try();
 	};
 	
 	return true;

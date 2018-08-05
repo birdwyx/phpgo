@@ -76,9 +76,8 @@ go(function(){
 go(function(){
 	usleep(200*1000);
 	echo "go 3\n";
-	exit;
+	Runtime::quit(1);
 });
-
 
 Scheduler::loop();
 
