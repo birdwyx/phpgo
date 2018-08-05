@@ -212,11 +212,10 @@ do{ \
 #endif
 
 struct PhpgoBaseContext{
+	uint64_t                   guard__[64];
 	uint64_t                   task_id;
 	bool                       http_globals_cleanup_required;
 
-	struct _zend_execute_data* EG_current_execute_data;
-	uint64_t                   guard[128];
 #if PHP_MAJOR_VERSION < 7
 	/*go routine running environment*/
 	zend_vm_stack 			   EG_argument_stack;       
@@ -244,10 +243,16 @@ struct PhpgoBaseContext{
 	zval                       PG_http_globals[NUM_TRACK_VARS];
 	zval                       http_request_global;
 #endif
+
+	struct _zend_execute_data* EG_current_execute_data;
+	JMP_BUF*                   EG_bailout;
+
+	uint64_t                   __guard[64];
 	/**/
 	PhpgoBaseContext(){
 		bzero(this, sizeof(*this));
-		memset(guard, 0xcc, sizeof(guard));
+		memset(guard__, 0xcc, sizeof(guard__));
+		memset(__guard, 0xcc, sizeof(__guard));
 		
 		PHP7_AND_ABOVE(
 			for(int i=0; i< NUM_TRACK_VARS; i++)
@@ -287,9 +292,12 @@ protected:
         this->EG_vm_stack_top          =  EG(vm_stack_top            );
 		this->EG_vm_stack_end          =  EG(vm_stack_end            );
 #endif
-		for(int i=0; i<128; i++){
-			if (guard[i]!=0xcccccccccccccccc) {
-				printf("!!!: guard was overwritten! address: %p, value:%lx\n", &guard[i], guard[i]);
+		for(int i=0; i<64; i++){
+			if (guard__[i]!=0xcccccccccccccccc) {
+				printf("!!!: guard__ was overwritten! address: %p, value:%lx\n", &guard__[i], guard__[i]);
+			}
+			if (__guard[i]!=0xcccccccccccccccc) {
+				printf("!!!: __guard was overwritten! address: %p, value:%lx\n", &__guard[i], __guard[i]);
 			}
 		}
 	}
@@ -325,9 +333,12 @@ protected:
 			SET_HTTP_GLOBALS(this->PG_http_globals, this->http_request_global);  		
 		}
 
-		for(int i=0; i<128; i++){
-			if (guard[i]!=0xcccccccccccccccc) {
-				printf("!!!: guard was overwritten! address: %p, value:%lx\n", &guard[i], guard[i]);
+		for(int i=0; i<64; i++){
+			if (guard__[i]!=0xcccccccccccccccc) {
+				printf("!!!: guard__ was overwritten! address: %p, value:%lx\n", &guard__[i], guard__[i]);
+			}
+			if (__guard[i]!=0xcccccccccccccccc) {
+				printf("!!!: __guard was overwritten! address: %p, value:%lx\n", &__guard[i], __guard[i]);
 			}
 		}
 	}
