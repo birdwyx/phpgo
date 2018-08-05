@@ -217,6 +217,7 @@ struct PhpgoBaseContext{
 
 	struct _zend_execute_data* EG_current_execute_data;
 	void*                      EG_bailout;
+	char                       buffer[128];
 #if PHP_MAJOR_VERSION < 7
 	/*go routine running environment*/
 	zend_vm_stack 			   EG_argument_stack;       
