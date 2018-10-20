@@ -41,6 +41,8 @@ steps to install the libgo:
 git clone https://github.com/yyzybb537/libgo
 cd libgo
 git checkout master
+git pull
+git reset --hard c280e6170a7d7bd124d98a8062cb47989f9ae4cd   #use a compatible version of libgo
 mkdir build
 cd build
 rm -rf *
