@@ -27,7 +27,7 @@ ENV RUNTIME_DEPS_PHP7 "libicu-devel libxslt libxslt-devel"
 
 ENV BUILD_DEPS "make cmake gcc gcc-c++ flex bison file libtool libtool-libs autoconf kernel-devel patch wget crontabs gd gd-devel unzip bzip2 bzip2-devel libevent libevent-devel e2fsprogs e2fsprogs-devel krb5-devel openssl openssl-devel gettext gettext-devel gmp-devel net-tools psmisc libXpm-devel git-core c-ares-devel expat-devel"
 
-ENV DEV_DEPS "git vim which"
+ENV DEV_DEPS "git vim which glibc-static libstdc++-static"
 
 COPY CentOS7-Base-163.repo php-fpm.conf /
 
