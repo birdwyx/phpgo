@@ -5,7 +5,8 @@ enum GoRoutineOptions{
 	// change of http globals in children go routines does not 
 	// affect those of parent go routine
 	gro_default              = 0x0,
-	gro_isolate_http_globals = 0x1
+	gro_isolate_http_globals = 0x1,
+	gro_isolate_obs          = 0x2
 };
 
 /*pure functions*/

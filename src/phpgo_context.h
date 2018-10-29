@@ -249,6 +249,15 @@ struct PhpgoBaseContext{
 #endif
 
 	JMP_BUF*                   EG_bailout;
+	
+	//for ob_xxxx
+	zend_stack                 OG_handlers;
+	php_output_handler*        OG_active;
+	php_output_handler*        OG_running;
+	const char*                OG_output_start_filename;
+	int                        OG_output_start_lineno;
+	int                        OG_flags;
+	//
 
 	uint64_t                   __guard[8];
 	/**/
@@ -297,7 +306,14 @@ protected:
 		this->EG_vm_stack_end          =  EG(vm_stack_end            );
 #endif
 
-		this->EG_bailout               =  EG(bailout                 );
+        this->EG_bailout               =  EG(bailout                 );
+
+        this->OG_handlers              =  OG(handlers                );
+        this->OG_active                =  OG(active                  );
+        this->OG_running               =  OG(running                 );
+        this->OG_output_start_filename =  OG(output_start_filename   );
+        this->OG_output_start_lineno   =  OG(output_start_lineno     );
+        this->OG_flags                 =  OG(flags                   );
 	}
 
 	inline void SwapIn(bool include_http_globals){
@@ -327,7 +343,15 @@ protected:
 	    EG(vm_stack_end         )	=  this->EG_vm_stack_end        ;
 #endif
 
-		EG(bailout              )   =  this->EG_bailout             ;
+        EG(bailout              )   =  this->EG_bailout             ;
+
+        OG(handlers             )   =  this->OG_handlers             ;
+        OG(active               )   =  this->OG_active               ;
+        OG(running              )   =  this->OG_running              ;
+        OG(output_start_filename)   =  this->OG_output_start_filename;
+        OG(output_start_lineno  )   =  this->OG_output_start_lineno  ;
+        OG(flags                )   =  this->OG_flags                ;
+		
 		
 		if(include_http_globals){			
 			REPLACE_PG_HTTP_GLOBALS_WITH(this->PG_http_globals);
@@ -361,26 +385,10 @@ public:
 	
 	inline void SwapOut(){
 		PhpgoBaseContext::SwapOut(this->go_routine_options & GoRoutineOptions::gro_isolate_http_globals);
-		
-		// the coroutine ( not the scheduler ) is finished 
-		// free the task local storage (including this context itself)
-		if(this->go_routine_finished) {
-			this->Cleanup();
-		}
 	}
 		
 	inline void SwapIn(){
 		PhpgoBaseContext::SwapIn(this->go_routine_options & GoRoutineOptions::gro_isolate_http_globals);
-	}
-	
-	inline void SetFinished(bool finished){
-		this->go_routine_finished = finished;
-	}
-	
-	inline void Cleanup(){
-		PhpgoBaseContext::Cleanup();	
-		// should be last sentence as this will free the context itself
-		TaskLocalStorage::FreeSpecifics(this->task_id);
 	}
 };
 
