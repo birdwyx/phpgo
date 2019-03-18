@@ -3,6 +3,14 @@
 #include "freeable.h"
 #include "task_local_storage.h"
 
+#if PHP_MAJOR_VERSION < 7
+#include "php_main.h"
+#else
+extern "C" {
+	#include "ext/standard/basic_functions.h"
+}
+#endif
+
 using namespace co;
 
 #ifdef ZTS
@@ -186,7 +194,7 @@ do{ \
 
 /*null-out our concerned globals to avoid potential problem*/
 #if PHP_MAJOR_VERSION < 7
-#define PHPGO_INITIALIZE_RUNNING_ENVIRONMENT()           \
+#define PHPGO_INITIALIZE_RUNNING_ENVIRONMENT()                     \
 {                                                                  \
 	EG(current_execute_data )   =  NULL;                           \
 	EG(bailout )                =  NULL;                           \
@@ -201,15 +209,17 @@ do{ \
 	INIT_ZVAL(EG(error_zval));                                     \
 	EG(error_zval_ptr       )   =  NULL;                           \
 	EG(user_error_handler   )   =  NULL;                           \
+	BG(user_shutdown_function_names) = NULL;                       \
 }
 #else
-#define PHPGO_INITIALIZE_RUNNING_ENVIRONMENT()           \
+#define PHPGO_INITIALIZE_RUNNING_ENVIRONMENT()                     \
 {                                                                  \
 	EG(current_execute_data )   =  NULL;                           \
 	EG(bailout              )   =  NULL;                           \
 	EG(vm_stack             )   =  NULL;                           \
 	EG(vm_stack_top         )   =  NULL;                           \
 	EG(vm_stack_end         )   =  NULL;                           \
+	BG(user_shutdown_function_names) = NULL;                       \
 }
 #endif
 
@@ -249,6 +259,7 @@ struct PhpgoBaseContext{
 #endif
 
 	JMP_BUF*                   EG_bailout;
+	HashTable*                 BG_user_shutdown_function_names;
 
 	uint64_t                   __guard[8];
 	/**/
@@ -298,6 +309,7 @@ protected:
 #endif
 
 		this->EG_bailout               =  EG(bailout                 );
+		this->BG_user_shutdown_function_names = BG(user_shutdown_function_names);
 	}
 
 	inline void SwapIn(bool include_http_globals){
@@ -328,6 +340,7 @@ protected:
 #endif
 
 		EG(bailout              )   =  this->EG_bailout             ;
+		BG(user_shutdown_function_names) = this->BG_user_shutdown_function_names;
 		
 		if(include_http_globals){			
 			REPLACE_PG_HTTP_GLOBALS_WITH(this->PG_http_globals);

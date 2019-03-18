@@ -9,6 +9,14 @@
 #include <iostream>
 #include "task_listener.h"
 
+#if PHP_MAJOR_VERSION < 7
+#include "php_main.h"
+#else
+extern "C" {
+	#include "ext/standard/basic_functions.h"
+}
+#endif
+
 using namespace std;
 using namespace co;
 
@@ -389,8 +397,13 @@ bool phpgo_go(
 			// the Runtime::quit() inside/outside a go routine
 			//
 		} zend_end_try();
+
+		// functions registered by register_shutdown_function() in go routine will be 
+		// called on go routine exit
+		php_call_shutdown_functions(TSRMLS_C);
+		php_free_shutdown_functions(TSRMLS_C);
 	};
-	
+
 	return true;
 }
 
