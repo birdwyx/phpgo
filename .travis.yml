@@ -29,9 +29,8 @@ install:
     - sudo ldconfig
     - sudo apt-get install -y -qq cmake 
     - git clone https://github.com/yyzybb537/libgo /tmp/libgo
-    - git reset --hard c280e6170a7d7bd124d98a8062cb47989f9ae4cd
     - pushd .
-    - cd /tmp/libgo && mkdir build && cd build
+    - cd /tmp/libgo && git checkout master && git reset --hard c280e6170a7d7bd124d98a8062cb47989f9ae4cd && mkdir build && cd build
     - sudo rm * -rf && cmake .. -DENABLE_BOOST_CONTEXT=ON && make -j4 && sudo make install
     - sudo ldconfig
 
