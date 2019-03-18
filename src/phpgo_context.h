@@ -5,11 +5,11 @@
 
 #if PHP_MAJOR_VERSION < 7
 #include "php_main.h"
-#else
+#endif
+
 extern "C" {
 	#include "ext/standard/basic_functions.h"
 }
-#endif
 
 using namespace co;
 
