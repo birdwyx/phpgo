@@ -19,9 +19,10 @@
 
 /* $Id$ */
 
-#if PHP_MAJOR_VERSION < 7
 #include "stdinc.h"
 #include "ext/standard/basic_functions.h"
+
+#if PHP_MAJOR_VERSION < 7
 
 static int user_shutdown_function_call(php_shutdown_function_entry *shutdown_function_entry TSRMLS_DC) /* {{{ */
 {
