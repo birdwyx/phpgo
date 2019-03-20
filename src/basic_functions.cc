@@ -20,7 +20,7 @@
 /* $Id$ */
 
 #include "stdinc.h"
-#include "ext/standard/basic_functions.h"
+#include "php_main.h"
 
 #if PHP_MAJOR_VERSION < 7
 
