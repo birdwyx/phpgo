@@ -21,6 +21,7 @@
 
 #include "stdinc.h"
 #include "php_main.h"
+#include "ext/standard/basic_functions.h"
 
 #if PHP_MAJOR_VERSION < 7
 
