@@ -68,5 +68,5 @@ if test "$PHP_PHPGO" != "no"; then
   dnl PHP_ADD_LIBRARY(libdl, 1, PHPGO_SHARED_LIBADD)
   dnl PHP_ADD_LIBRARY(boost_thread, 1, PHPGO_SHARED_LIBADD)
   PHP_ADD_LIBRARY(stdc++, 1, PHPGO_SHARED_LIBADD)
-  PHP_NEW_EXTENSION(phpgo, src/phpgo.cc src/phpgo_context.cc src/go.cc src/go_chan.cc src/go_runtime.cc src/go_time.cc src/go_select.cc src/zend_variables_persist.cc src/task_local_storage.cc, $ext_shared)
+  PHP_NEW_EXTENSION(phpgo, src/phpgo.cc src/phpgo_context.cc src/go.cc src/go_chan.cc src/go_runtime.cc src/go_time.cc src/go_select.cc src/zend_variables_persist.cc src/task_local_storage.cc src/basic_functions.cc, $ext_shared)
 fi
