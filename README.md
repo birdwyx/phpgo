@@ -1,3 +1,5 @@
+[![996.icu](https://img.shields.io/badge/link-996.icu-red.svg)](https://996.icu)
+
 # phpgo
 
 phpgo's mission is to provide a small, simple, stable extension for existing and future PHP applications for much higher concurrency, better performance, with lower resouce consumption and work well with most of the existing php features, extensions and frameworks
