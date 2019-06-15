@@ -1,3 +1,6 @@
+[![996.icu](https://img.shields.io/badge/link-996.icu-red.svg)](https://996.icu) 
+[![LICENSE](https://img.shields.io/badge/license-Anti%20996-blue.svg)](https://github.com/996icu/996.ICU/blob/master/LICENSE)
+
 # phpgo
 
 phpgo's mission is to provide a small, simple, stable extension for existing and future PHP applications for much higher concurrency, better performance, with lower resouce consumption and work well with most of the existing php features, extensions and frameworks
