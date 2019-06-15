@@ -208,7 +208,7 @@ do{ \
 	EG(opline_ptr           )   =  NULL;                           \
 	INIT_ZVAL(EG(error_zval));                                     \
 	EG(error_zval_ptr       )   =  NULL;                           \
-	EG(user_error_handler   )   =  NULL;                           \
+	/*EG(user_error_handler   )   =  NULL;*/                           \
 	BG(user_shutdown_function_names) = NULL;                       \
 }
 #else
@@ -242,7 +242,7 @@ struct PhpgoBaseContext{
 	zend_op**				   EG_opline_ptr;           
 	zval                       EG_error_zval;           
 	zval*                      EG_error_zval_ptr;       
-	zval*                      EG_user_error_handler;
+	/*zval*                      EG_user_error_handler;*/
 	
 	zval*                      PG_http_globals[NUM_TRACK_VARS];
 	zval*                      http_request_global;
@@ -301,7 +301,7 @@ protected:
 		this->EG_opline_ptr            =  EG(opline_ptr              ); 
 		this->EG_error_zval            =  EG(error_zval              ); 
 		this->EG_error_zval_ptr        =  EG(error_zval_ptr          ); 
-		this->EG_user_error_handler    =  EG(user_error_handler      ); 
+		/*this->EG_user_error_handler    =  EG(user_error_handler      ); */
 #else
 		this->EG_vm_stack              =  EG(vm_stack                );
         this->EG_vm_stack_top          =  EG(vm_stack_top            );
@@ -332,7 +332,7 @@ protected:
 		EG(opline_ptr           )   =  this->EG_opline_ptr          ; 
 		EG(error_zval           )   =  this->EG_error_zval          ; 
 		EG(error_zval_ptr       )   =  this->EG_error_zval_ptr      ; 
-		EG(user_error_handler   )   =  this->EG_user_error_handler  ;
+		/*EG(user_error_handler   )   =  this->EG_user_error_handler  ;*/
 #else
 		EG(vm_stack             )	=  this->EG_vm_stack            ;
 	    EG(vm_stack_top         )	=  this->EG_vm_stack_top        ;
